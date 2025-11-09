@@ -1,6 +1,10 @@
 //@version=6
 indicator("AI GOLD MASTER – Omega v1.5 [COMPLETE]", shorttitle="GOLDMAST Ω", overlay=true, scale=scale.right, max_labels_count=500, max_lines_count=500, max_boxes_count=500)
 
+// ⚠️ IMPORTANT: Pine Script limite à 64 plots maximum par script
+// Par défaut, seuls les modules essentiels sont activés pour éviter l'erreur "too many plots"
+// Activez/désactivez les modules selon vos besoins dans les settings
+
 // === 🎨 GROUPS ===
 group_style     = "🎨 Style Global"
 group_dash      = "📊 Dashboard"
@@ -47,33 +51,33 @@ show_vwap     = input.bool(true,  "Afficher VWAP",                       group=g
 impact_vwap   = input.bool(true,  "Impact Confluence",                   group=group_vwap)
 show_st       = input.bool(true,  "Afficher Supertrend",                 group=group_st)
 impact_st     = input.bool(true,  "Impact Confluence",                   group=group_st)
-show_eng      = input.bool(true,  "Afficher Engulfing",                  group=group_eng)
+show_eng      = input.bool(false, "Afficher Engulfing",                  group=group_eng)
 impact_eng    = input.bool(true,  "Impact Confluence",                   group=group_eng)
 show_do       = input.bool(true,  "Afficher Daily Open",                 group=group_do)
 impact_do     = input.bool(true,  "Impact Confluence",                   group=group_do)
-show_struct   = input.bool(true,  "Afficher Structure HH/HL",            group=group_struct)
+show_struct   = input.bool(false, "Afficher Structure HH/HL",            group=group_struct)
 impact_struct = input.bool(true,  "Impact Confluence",                   group=group_struct)
-show_ob       = input.bool(true,  "Afficher Order Blocks HTF",           group=group_ob)
+show_ob       = input.bool(false, "Afficher Order Blocks HTF",           group=group_ob)
 impact_ob     = input.bool(true,  "Impact Confluence",                   group=group_ob)
-show_fib      = input.bool(true,  "Afficher Fibo Impulsion Auto",        group=group_fib)
+show_fib      = input.bool(false, "Afficher Fibo Impulsion Auto",        group=group_fib)
 impact_fib    = input.bool(true,  "Impact Confluence",                   group=group_fib)
-show_rsi      = input.bool(true,  "Afficher RSI Divergence (MTF)",       group=group_rsi)
+show_rsi      = input.bool(false, "Afficher RSI Divergence (MTF)",       group=group_rsi)
 impact_rsi    = input.bool(true,  "Impact Confluence",                   group=group_rsi)
-show_liq      = input.bool(true,  "Afficher Liquidity Pools & EQH/EQL",  group=group_liq)
+show_liq      = input.bool(false, "Afficher Liquidity Pools & EQH/EQL",  group=group_liq)
 impact_liq    = input.bool(true,  "Impact Confluence",                   group=group_liq)
-show_fvg      = input.bool(true,  "Afficher FVG / iFVG ICT",             group=group_fvg)
+show_fvg      = input.bool(false, "Afficher FVG / iFVG ICT",             group=group_fvg)
 impact_fvg    = input.bool(true,  "Impact Confluence",                   group=group_fvg)
-show_vola     = input.bool(true,  "Afficher ADR / ATR",                  group=group_vola)
+show_vola     = input.bool(false, "Afficher ADR / ATR",                  group=group_vola)
 impact_vola   = input.bool(true,  "Impact Confluence",                   group=group_vola)
-show_levels   = input.bool(true,  "Afficher PDH / PDL / OHLC",           group=group_levels)
+show_levels   = input.bool(false, "Afficher PDH / PDL / OHLC",           group=group_levels)
 impact_levels = input.bool(true,  "Impact Confluence",                   group=group_levels)
-show_volume   = input.bool(true,  "Afficher Volume Acheteur/Vendeur %",  group=group_volume)
+show_volume   = input.bool(false, "Afficher Volume Acheteur/Vendeur %",  group=group_volume)
 impact_volume = input.bool(true,  "Impact Confluence",                   group=group_volume)
-show_flags    = input.bool(true,  "Afficher Flags & Breakouts",          group=group_flags)
+show_flags    = input.bool(false, "Afficher Flags & Breakouts",          group=group_flags)
 impact_flags  = input.bool(true,  "Impact Confluence",                   group=group_flags)
-show_tl       = input.bool(true,  "Afficher Auto Trend Lines",           group=group_tl)
+show_tl       = input.bool(false, "Afficher Auto Trend Lines",           group=group_tl)
 impact_tl     = input.bool(true,  "Impact Confluence",                   group=group_tl)
-show_smc      = input.bool(true,  "Afficher SMC / MSS / BOS / CHoCH",    group=group_smc)
+show_smc      = input.bool(false, "Afficher SMC / MSS / BOS / CHoCH",    group=group_smc)
 impact_smc    = input.bool(true,  "Impact Confluence",                   group=group_smc)
 show_risk     = input.bool(true,  "Afficher Risk Engine",                group=group_risk)
 impact_risk   = input.bool(true,  "Impact Confluence",                   group=group_risk)
@@ -310,10 +314,9 @@ levels_bull = close > pdh
 levels_bear = close < pdl
 levels_sig = show_levels ? (levels_bull ? 1 : levels_bear ? -1 : 0) : 0
 
+// Plots PDH/PDL uniquement (Weekly/Monthly disponibles via calculs mais non affichés pour économiser plots)
 plot(show_levels ? pdh : na, "PDH", color=color.new(colBear, 50), linewidth=1, style=plot.style_circles)
 plot(show_levels ? pdl : na, "PDL", color=color.new(colBull, 50), linewidth=1, style=plot.style_circles)
-plot(show_levels ? weekly_high : na, "Weekly High", color=color.new(colBear, 70), linewidth=1, style=plot.style_cross)
-plot(show_levels ? weekly_low : na, "Weekly Low", color=color.new(colBull, 70), linewidth=1, style=plot.style_cross)
 
 // === 📊 VOLUME CONTROL (%) ===
 vol_ma_len = input.int(20, "MA Volume", minval=1, group=group_volume)

@@ -112,6 +112,8 @@ Quand confluence détectée, affiche automatiquement:
 4. Copier/coller le contenu de `AI_GOLD_MASTER_v6.pine`
 5. Enregistrer et ajouter au graphique
 
+⚠️ **Important**: Par défaut, seuls les modules essentiels sont activés pour éviter l'erreur "too many plots" de Pine Script (limite 64 plots). Voir [PLOTS_MANAGEMENT.md](PLOTS_MANAGEMENT.md) pour plus de détails sur l'activation des modules optionnels.
+
 ## ⚙️ Configuration Recommandée
 
 ### Pour XAUUSD (Gold)
