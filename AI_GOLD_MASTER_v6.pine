@@ -1,0 +1,669 @@
+//@version=6
+indicator("AI GOLD MASTER – Omega v1.5 [COMPLETE]", shorttitle="GOLDMAST Ω", overlay=true, scale=scale.right, max_labels_count=500, max_lines_count=500, max_boxes_count=500)
+
+// === 🎨 GROUPS ===
+group_style     = "🎨 Style Global"
+group_dash      = "📊 Dashboard"
+group_master    = "🧭 Mode Global"
+group_sig       = "🧠 Confluence"
+group_ema       = "📐 EMA 50/100/200"
+group_ema9      = "⚡ EMA9 Momentum"
+group_vwap      = "📍 VWAP"
+group_st        = "📈 Supertrend"
+group_eng       = "🕯️ Engulfing"
+group_do        = "🟦 Daily Open"
+group_struct    = "🔹 Structure HH/HL"
+group_ob        = "🧱 Order Blocks HTF"
+group_fib       = "📐 Fibo Impulsion Auto"
+group_rsi       = "💠 RSI Divergence"
+group_liq       = "💧 Liquidity Pools & EQH/EQL"
+group_fvg       = "📐 FVG / iFVG ICT"
+group_vola      = "📏 ADR / ATR"
+group_levels    = "📅 PDH / PDL / OHLC"
+group_volume    = "📊 Volume Control (%)"
+group_flags     = "🚩 Flags & Breakouts"
+group_tl        = "📐 Auto Trend Lines"
+group_smc       = "🔷 SMC / MSS / BOS / CHoCH"
+group_risk      = "💰 Risk Engine"
+group_dash_full = "📊 Dashboard MTF Bias"
+
+// === 🎨 PALETTE ===
+colGold = input.color(color.rgb(212,175,55), "Or principal (UI)", group=group_style, inline="a")
+colDark = input.color(color.rgb(20,20,20),   "Fond Dashboard",    group=group_style, inline="a")
+colBull = input.color(color.rgb(8,153,129),  "Vert Bullish",      group=group_style, inline="b")
+colBear = input.color(color.rgb(242,54,69),  "Rouge Bearish",     group=group_style, inline="b")
+
+// === 🧭 MODE GLOBAL ===
+tradingMode  = input.string("Intraday", "Mode Trading", options=["Scalp", "Intraday", "Swing"], group=group_master)
+riskStyle    = input.string("Pro", "Style Risk", options=["Pro", "Agressif"], group=group_master)
+resetInputs  = input.bool(false, "Reset tous les inputs", group=group_master)
+
+// === 🔧 TOGGLES PAR MODULE ===
+show_ema      = input.bool(true,  "Afficher EMA Trend 50/100/200",       group=group_ema)
+impact_ema    = input.bool(true,  "Impact Confluence",                   group=group_ema)
+show_ema9     = input.bool(true,  "Afficher EMA9 Momentum",              group=group_ema9)
+impact_ema9   = input.bool(true,  "Impact Confluence",                   group=group_ema9)
+show_vwap     = input.bool(true,  "Afficher VWAP",                       group=group_vwap)
+impact_vwap   = input.bool(true,  "Impact Confluence",                   group=group_vwap)
+show_st       = input.bool(true,  "Afficher Supertrend",                 group=group_st)
+impact_st     = input.bool(true,  "Impact Confluence",                   group=group_st)
+show_eng      = input.bool(true,  "Afficher Engulfing",                  group=group_eng)
+impact_eng    = input.bool(true,  "Impact Confluence",                   group=group_eng)
+show_do       = input.bool(true,  "Afficher Daily Open",                 group=group_do)
+impact_do     = input.bool(true,  "Impact Confluence",                   group=group_do)
+show_struct   = input.bool(true,  "Afficher Structure HH/HL",            group=group_struct)
+impact_struct = input.bool(true,  "Impact Confluence",                   group=group_struct)
+show_ob       = input.bool(true,  "Afficher Order Blocks HTF",           group=group_ob)
+impact_ob     = input.bool(true,  "Impact Confluence",                   group=group_ob)
+show_fib      = input.bool(true,  "Afficher Fibo Impulsion Auto",        group=group_fib)
+impact_fib    = input.bool(true,  "Impact Confluence",                   group=group_fib)
+show_rsi      = input.bool(true,  "Afficher RSI Divergence (MTF)",       group=group_rsi)
+impact_rsi    = input.bool(true,  "Impact Confluence",                   group=group_rsi)
+show_liq      = input.bool(true,  "Afficher Liquidity Pools & EQH/EQL",  group=group_liq)
+impact_liq    = input.bool(true,  "Impact Confluence",                   group=group_liq)
+show_fvg      = input.bool(true,  "Afficher FVG / iFVG ICT",             group=group_fvg)
+impact_fvg    = input.bool(true,  "Impact Confluence",                   group=group_fvg)
+show_vola     = input.bool(true,  "Afficher ADR / ATR",                  group=group_vola)
+impact_vola   = input.bool(true,  "Impact Confluence",                   group=group_vola)
+show_levels   = input.bool(true,  "Afficher PDH / PDL / OHLC",           group=group_levels)
+impact_levels = input.bool(true,  "Impact Confluence",                   group=group_levels)
+show_volume   = input.bool(true,  "Afficher Volume Acheteur/Vendeur %",  group=group_volume)
+impact_volume = input.bool(true,  "Impact Confluence",                   group=group_volume)
+show_flags    = input.bool(true,  "Afficher Flags & Breakouts",          group=group_flags)
+impact_flags  = input.bool(true,  "Impact Confluence",                   group=group_flags)
+show_tl       = input.bool(true,  "Afficher Auto Trend Lines",           group=group_tl)
+impact_tl     = input.bool(true,  "Impact Confluence",                   group=group_tl)
+show_smc      = input.bool(true,  "Afficher SMC / MSS / BOS / CHoCH",    group=group_smc)
+impact_smc    = input.bool(true,  "Impact Confluence",                   group=group_smc)
+show_risk     = input.bool(true,  "Afficher Risk Engine",                group=group_risk)
+impact_risk   = input.bool(true,  "Impact Confluence",                   group=group_risk)
+show_dash     = input.bool(true,  "Afficher Dashboard",                  group=group_dash_full)
+enable_conf   = input.bool(true,  "Activer Moteur de Confluence Strict", group=group_sig)
+
+// === 📐 EMA Trend 50/100/200 ===
+emaLen1 = input.int(50,  "Période EMA 50",  minval=1, group=group_ema)
+emaLen2 = input.int(100, "Période EMA 100", minval=1, group=group_ema)
+emaLen3 = input.int(200, "Période EMA 200", minval=1, group=group_ema)
+
+ema50  = ta.ema(close, emaLen1)
+ema100 = ta.ema(close, emaLen2)
+ema200 = ta.ema(close, emaLen3)
+
+ema_bull_trend = (ema50 > ema100) and (ema100 > ema200)
+ema_bear_trend = (ema200 > ema100) and (ema100 > ema50)
+ema_trend_sig  = show_ema ? (ema_bull_trend ? 1 : ema_bear_trend ? -1 : 0) : 0
+
+plot(show_ema ? ema50  : na, "EMA 50",  color=color.new(colGold, 0),  linewidth=2)
+plot(show_ema ? ema100 : na, "EMA 100", color=color.new(colGold, 40), linewidth=2)
+plot(show_ema ? ema200 : na, "EMA 200", color=color.new(colGold, 80), linewidth=2)
+
+// === ⚡ EMA9 Momentum ===
+ema9_len      = input.int(9, "Période EMA9", minval=1, group=group_ema9)
+ema9          = ta.ema(close, ema9_len)
+bull_momentum = close > ema9
+ema9_sig      = show_ema9 ? (bull_momentum ? 1 : -1) : 0
+ema9_col      = bull_momentum ? color.new(colBull, 0) : color.new(colBear, 0)
+
+plot(show_ema9 ? ema9 : na, "EMA9 Momentum", color=ema9_col, linewidth=2)
+
+// === 📍 VWAP ===
+vwap_val  = ta.vwap(hlc3)
+vwap_bull = close > vwap_val
+vwap_sig  = show_vwap ? (vwap_bull ? 1 : -1) : 0
+vwap_col  = vwap_bull ? color.new(colBull, 0) : color.new(colBear, 0)
+
+plot(show_vwap ? vwap_val : na, "VWAP", color=vwap_col, linewidth=2)
+
+// === 📈 SUPERTREND ===
+st_factor = input.float(3.0, "ATR Multiplier", minval=0.1, group=group_st)
+st_period = input.int(10, "ATR Période", minval=1, group=group_st)
+
+[st_supertrend, st_direction] = ta.supertrend(st_factor, st_period)
+st_bull = st_direction < 0
+st_sig  = show_st ? (st_bull ? 1 : -1) : 0
+st_col  = st_bull ? color.new(colBull, 0) : color.new(colBear, 0)
+
+plot(show_st ? st_supertrend : na, "Supertrend", color=st_col, linewidth=2, style=plot.style_line)
+
+// === 🕯️ ENGULFING ===
+eng_len = input.int(1, "Lookback Engulfing", minval=1, group=group_eng)
+
+bull_eng = close > open and close[1] < open[1] and close > open[1] and open < close[1]
+bear_eng = close < open and close[1] > open[1] and close < open[1] and open > close[1]
+eng_sig  = show_eng ? (bull_eng ? 1 : bear_eng ? -1 : 0) : 0
+
+plotshape(show_eng and bull_eng, "Bull Engulfing", shape.triangleup, location.belowbar, color.new(colBull, 0), size=size.small)
+plotshape(show_eng and bear_eng, "Bear Engulfing", shape.triangledown, location.abovebar, color.new(colBear, 0), size=size.small)
+
+// === 🟦 DAILY OPEN ===
+daily_open = request.security(syminfo.tickerid, "D", open, lookahead=barmerge.lookahead_on)
+do_bull    = close > daily_open
+do_sig     = show_do ? (do_bull ? 1 : -1) : 0
+
+plot(show_do ? daily_open : na, "Daily Open", color=color.new(colGold, 50), linewidth=1, style=plot.style_circles)
+
+// === 🔹 STRUCTURE HH/HL/LL/LH ===
+struct_len   = input.int(10, "Pivots Lookback", minval=5, group=group_struct)
+struct_left  = input.int(5, "Left Bars", minval=1, group=group_struct)
+struct_right = input.int(5, "Right Bars", minval=1, group=group_struct)
+
+pivot_high = ta.pivothigh(high, struct_left, struct_right)
+pivot_low  = ta.pivotlow(low, struct_left, struct_right)
+
+var float last_hh = na
+var float last_ll = na
+var int struct_trend = 0
+
+if not na(pivot_high)
+    if na(last_hh) or pivot_high > last_hh
+        last_hh := pivot_high
+        struct_trend := 1
+    else
+        struct_trend := -1
+
+if not na(pivot_low)
+    if na(last_ll) or pivot_low < last_ll
+        last_ll := pivot_low
+        struct_trend := -1
+    else
+        struct_trend := 1
+
+struct_sig = show_struct ? struct_trend : 0
+
+plotshape(show_struct and not na(pivot_high), "Pivot High", shape.labeldown, location.abovebar, color.new(colBear, 50), text="H", size=size.tiny)
+plotshape(show_struct and not na(pivot_low), "Pivot Low", shape.labelup, location.belowbar, color.new(colBull, 50), text="L", size=size.tiny)
+
+// === 🧱 ORDER BLOCKS HTF ===
+ob_htf       = input.timeframe("60", "HTF Timeframe", group=group_ob)
+ob_lookback  = input.int(50, "Max OB à afficher", minval=1, maxval=100, group=group_ob)
+ob_threshold = input.float(0.5, "Threshold % body", minval=0.1, maxval=5.0, group=group_ob)
+
+[ob_bull_high, ob_bull_low, ob_bear_high, ob_bear_low] = request.security(syminfo.tickerid, ob_htf, [high, low, high, low], lookahead=barmerge.lookahead_off)
+
+ob_bull_detected = close > open and (close - open) / (high - low) > ob_threshold / 100
+ob_bear_detected = close < open and (open - close) / (high - low) > ob_threshold / 100
+ob_sig = show_ob ? (ob_bull_detected ? 1 : ob_bear_detected ? -1 : 0) : 0
+
+var box[] ob_bull_boxes = array.new<box>()
+var box[] ob_bear_boxes = array.new<box>()
+
+if show_ob and ob_bull_detected
+    if array.size(ob_bull_boxes) < ob_lookback
+        array.push(ob_bull_boxes, box.new(bar_index, high, bar_index + 50, low, border_color=color.new(colBull, 70), bgcolor=color.new(colBull, 90), border_width=1))
+
+if show_ob and ob_bear_detected
+    if array.size(ob_bear_boxes) < ob_lookback
+        array.push(ob_bear_boxes, box.new(bar_index, high, bar_index + 50, low, border_color=color.new(colBear, 70), bgcolor=color.new(colBear, 90), border_width=1))
+
+// === 📐 FIBO IMPULSION AUTO ===
+fib_lookback = input.int(100, "Lookback Impulsion", minval=10, group=group_fib)
+fib_show_50  = input.bool(true, "Show 50.0%", group=group_fib)
+fib_show_618 = input.bool(true, "Show 61.8%", group=group_fib)
+fib_show_786 = input.bool(true, "Show 78.6%", group=group_fib)
+
+fib_high = ta.highest(high, fib_lookback)
+fib_low  = ta.lowest(low, fib_lookback)
+fib_range = fib_high - fib_low
+
+fib_50  = fib_high - fib_range * 0.500
+fib_618 = fib_high - fib_range * 0.618
+fib_786 = fib_high - fib_range * 0.786
+
+fib_bull_zone = close > fib_618 and close < fib_50
+fib_bear_zone = close < fib_618 and close > fib_786
+fib_sig = show_fib ? (fib_bull_zone ? 1 : fib_bear_zone ? -1 : 0) : 0
+
+plot(show_fib and fib_show_50 ? fib_50 : na, "Fib 50.0%", color=color.new(colGold, 60), linewidth=1, style=plot.style_circles)
+plot(show_fib and fib_show_618 ? fib_618 : na, "Fib 61.8%", color=color.new(colGold, 60), linewidth=1, style=plot.style_circles)
+plot(show_fib and fib_show_786 ? fib_786 : na, "Fib 78.6%", color=color.new(colGold, 60), linewidth=1, style=plot.style_circles)
+
+plotshape(show_fib and fib_bull_zone, "Fib Bull Zone", shape.triangleup, location.belowbar, color.new(color.yellow, 0), size=size.tiny)
+plotshape(show_fib and fib_bear_zone, "Fib Bear Zone", shape.triangledown, location.abovebar, color.new(color.yellow, 0), size=size.tiny)
+
+// === 💠 RSI DIVERGENCE (MTF) ===
+rsi_len     = input.int(14, "Période RSI", minval=1, group=group_rsi)
+rsi_tf      = input.timeframe("", "Timeframe RSI", group=group_rsi)
+rsi_ob      = input.int(70, "Overbought", minval=50, maxval=100, group=group_rsi)
+rsi_os      = input.int(30, "Oversold", minval=0, maxval=50, group=group_rsi)
+rsi_div_len = input.int(5, "Lookback Divergence", minval=2, group=group_rsi)
+
+rsi_val = request.security(syminfo.tickerid, rsi_tf, ta.rsi(close, rsi_len), lookahead=barmerge.lookahead_off)
+
+rsi_bull_div = rsi_val < rsi_os and low < low[rsi_div_len] and rsi_val > rsi_val[rsi_div_len]
+rsi_bear_div = rsi_val > rsi_ob and high > high[rsi_div_len] and rsi_val < rsi_val[rsi_div_len]
+rsi_sig = show_rsi ? (rsi_bull_div ? 1 : rsi_bear_div ? -1 : 0) : 0
+
+plotshape(show_rsi and rsi_bull_div, "RSI Bull Div", shape.labelup, location.belowbar, color.new(colBull, 0), text="DIV+", textcolor=color.white, size=size.small)
+plotshape(show_rsi and rsi_bear_div, "RSI Bear Div", shape.labeldown, location.abovebar, color.new(colBear, 0), text="DIV-", textcolor=color.white, size=size.small)
+
+// === 💧 LIQUIDITY POOLS & EQH/EQL ===
+liq_lookback = input.int(20, "Lookback Liquidity", minval=5, group=group_liq)
+liq_threshold = input.float(0.1, "EQH/EQL Threshold %", minval=0.01, maxval=2.0, group=group_liq)
+
+eqh_high = ta.highest(high, liq_lookback)
+eql_low  = ta.lowest(low, liq_lookback)
+
+eqh_detected = high >= eqh_high * (1 - liq_threshold / 100) and high <= eqh_high * (1 + liq_threshold / 100)
+eql_detected = low >= eql_low * (1 - liq_threshold / 100) and low <= eql_low * (1 + liq_threshold / 100)
+
+liq_sweep_bull = low < eql_low and close > open
+liq_sweep_bear = high > eqh_high and close < open
+liq_sig = show_liq ? (liq_sweep_bull ? 1 : liq_sweep_bear ? -1 : 0) : 0
+
+plotshape(show_liq and eqh_detected, "EQH", shape.diamond, location.abovebar, color.new(color.purple, 0), size=size.tiny, text="EQH")
+plotshape(show_liq and eql_detected, "EQL", shape.diamond, location.belowbar, color.new(color.purple, 0), size=size.tiny, text="EQL")
+plotshape(show_liq and liq_sweep_bull, "Sweep Bull", shape.triangleup, location.belowbar, color.new(colBull, 0), size=size.small, text="SWEEP")
+plotshape(show_liq and liq_sweep_bear, "Sweep Bear", shape.triangledown, location.abovebar, color.new(colBear, 0), size=size.small, text="SWEEP")
+
+// === 📐 FVG / iFVG ICT ===
+fvg_threshold = input.float(0.5, "FVG Min Size %", minval=0.1, maxval=5.0, group=group_fvg)
+fvg_show_ifvg = input.bool(true, "Show Inverse FVG", group=group_fvg)
+
+fvg_bull_gap = low > high[2] and (low - high[2]) / high[2] * 100 > fvg_threshold
+fvg_bear_gap = high < low[2] and (low[2] - high) / low[2] * 100 > fvg_threshold
+
+fvg_bull_filled = close <= high[2] and fvg_bull_gap[1]
+fvg_bear_filled = close >= low[2] and fvg_bear_gap[1]
+
+ifvg_bull = fvg_bear_filled and fvg_show_ifvg
+ifvg_bear = fvg_bull_filled and fvg_show_ifvg
+fvg_sig = show_fvg ? (fvg_bull_gap ? 1 : fvg_bear_gap ? -1 : 0) : 0
+
+var box[] fvg_bull_boxes = array.new<box>()
+var box[] fvg_bear_boxes = array.new<box>()
+
+if show_fvg and fvg_bull_gap
+    if array.size(fvg_bull_boxes) < 50
+        array.push(fvg_bull_boxes, box.new(bar_index, low, bar_index + 20, high[2], border_color=color.new(colBull, 80), bgcolor=color.new(colBull, 95), border_width=1))
+
+if show_fvg and fvg_bear_gap
+    if array.size(fvg_bear_boxes) < 50
+        array.push(fvg_bear_boxes, box.new(bar_index, high, bar_index + 20, low[2], border_color=color.new(colBear, 80), bgcolor=color.new(colBear, 95), border_width=1))
+
+plotshape(show_fvg and ifvg_bull, "iFVG Bull", shape.xcross, location.belowbar, color.new(colBull, 0), size=size.tiny)
+plotshape(show_fvg and ifvg_bear, "iFVG Bear", shape.xcross, location.abovebar, color.new(colBear, 0), size=size.tiny)
+
+// === 📏 ADR / ATR (Volatilité) ===
+adr_len = input.int(14, "Période ADR", minval=1, group=group_vola)
+atr_len = input.int(14, "Période ATR", minval=1, group=group_vola)
+
+daily_range = request.security(syminfo.tickerid, "D", high - low, lookahead=barmerge.lookahead_on)
+adr_val = ta.sma(daily_range, adr_len)
+adr_pct = adr_val / close * 100
+
+atr_val = ta.atr(atr_len)
+atr_pct = atr_val / close * 100
+
+vola_high = atr_pct > 2.0
+vola_low  = atr_pct < 1.0
+vola_sig = show_vola ? (vola_high ? 1 : vola_low ? -1 : 0) : 0
+
+// === 📅 PDH / PDL / IB + OHLC ===
+pdh = request.security(syminfo.tickerid, "D", high[1], lookahead=barmerge.lookahead_on)
+pdl = request.security(syminfo.tickerid, "D", low[1], lookahead=barmerge.lookahead_on)
+weekly_high = request.security(syminfo.tickerid, "W", high, lookahead=barmerge.lookahead_on)
+weekly_low  = request.security(syminfo.tickerid, "W", low, lookahead=barmerge.lookahead_on)
+monthly_high = request.security(syminfo.tickerid, "M", high, lookahead=barmerge.lookahead_on)
+monthly_low  = request.security(syminfo.tickerid, "M", low, lookahead=barmerge.lookahead_on)
+
+levels_bull = close > pdh
+levels_bear = close < pdl
+levels_sig = show_levels ? (levels_bull ? 1 : levels_bear ? -1 : 0) : 0
+
+plot(show_levels ? pdh : na, "PDH", color=color.new(colBear, 50), linewidth=1, style=plot.style_circles)
+plot(show_levels ? pdl : na, "PDL", color=color.new(colBull, 50), linewidth=1, style=plot.style_circles)
+plot(show_levels ? weekly_high : na, "Weekly High", color=color.new(colBear, 70), linewidth=1, style=plot.style_cross)
+plot(show_levels ? weekly_low : na, "Weekly Low", color=color.new(colBull, 70), linewidth=1, style=plot.style_cross)
+
+// === 📊 VOLUME CONTROL (%) ===
+vol_ma_len = input.int(20, "MA Volume", minval=1, group=group_volume)
+
+vol_ma = ta.sma(volume, vol_ma_len)
+vol_bull_pct = close > open ? volume / vol_ma * 100 : 0
+vol_bear_pct = close < open ? volume / vol_ma * 100 : 0
+
+vol_bull_spike = vol_bull_pct > 150
+vol_bear_spike = vol_bear_pct > 150
+vol_sig = show_volume ? (vol_bull_spike ? 1 : vol_bear_spike ? -1 : 0) : 0
+
+bgcolor(show_volume and vol_bull_spike ? color.new(colBull, 95) : na)
+bgcolor(show_volume and vol_bear_spike ? color.new(colBear, 95) : na)
+
+// === 🚩 FLAGS & BREAKOUTS ===
+flag_lookback = input.int(20, "Lookback Compression", minval=5, group=group_flags)
+flag_atr_mult = input.float(1.5, "ATR Breakout Multiplier", minval=0.5, group=group_flags)
+
+flag_high = ta.highest(high, flag_lookback)
+flag_low  = ta.lowest(low, flag_lookback)
+flag_range = flag_high - flag_low
+flag_atr = ta.atr(14)
+
+flag_compression = flag_range < flag_atr * flag_atr_mult
+flag_breakout_bull = close > flag_high and flag_compression[1]
+flag_breakout_bear = close < flag_low and flag_compression[1]
+flag_sig = show_flags ? (flag_breakout_bull ? 1 : flag_breakout_bear ? -1 : 0) : 0
+
+plotshape(show_flags and flag_breakout_bull, "Flag Breakout Bull", shape.flag, location.belowbar, color.new(colBull, 0), size=size.small)
+plotshape(show_flags and flag_breakout_bear, "Flag Breakout Bear", shape.flag, location.abovebar, color.new(colBear, 0), size=size.small)
+
+// === 📐 AUTO TREND LINES ===
+tl_strength = input.int(3, "Pivot Strength", minval=1, group=group_tl)
+tl_lookback = input.int(100, "Lookback", minval=10, group=group_tl)
+
+tl_pivot_high = ta.pivothigh(high, tl_strength, tl_strength)
+tl_pivot_low  = ta.pivotlow(low, tl_strength, tl_strength)
+
+var line tl_resistance = na
+var line tl_support = na
+
+if show_tl and not na(tl_pivot_high)
+    if not na(tl_resistance)
+        line.delete(tl_resistance)
+    tl_resistance := line.new(bar_index - tl_strength, tl_pivot_high, bar_index + tl_lookback, tl_pivot_high, color=color.new(colBear, 50), width=1, style=line.style_dashed)
+
+if show_tl and not na(tl_pivot_low)
+    if not na(tl_support)
+        line.delete(tl_support)
+    tl_support := line.new(bar_index - tl_strength, tl_pivot_low, bar_index + tl_lookback, tl_pivot_low, color=color.new(colBull, 50), width=1, style=line.style_dashed)
+
+tl_break_bull = not na(tl_support) and close > line.get_y2(tl_resistance)
+tl_break_bear = not na(tl_resistance) and close < line.get_y2(tl_support)
+tl_sig = show_tl ? (tl_break_bull ? 1 : tl_break_bear ? -1 : 0) : 0
+
+// === �� SMC / MSS / BOS / CHoCH ===
+smc_lookback = input.int(50, "Lookback Structure", minval=10, group=group_smc)
+
+smc_hh = ta.highest(high, smc_lookback)
+smc_ll = ta.lowest(low, smc_lookback)
+
+var int smc_trend = 0
+var float smc_last_high = na
+var float smc_last_low = na
+
+smc_bos_bull = close > smc_hh[1] and smc_trend == 1
+smc_bos_bear = close < smc_ll[1] and smc_trend == -1
+smc_choch_bull = close > smc_hh[1] and smc_trend == -1
+smc_choch_bear = close < smc_ll[1] and smc_trend == 1
+
+if smc_choch_bull
+    smc_trend := 1
+    smc_last_high := high
+if smc_choch_bear
+    smc_trend := -1
+    smc_last_low := low
+
+smc_mss_bull = not na(smc_last_high) and high > smc_last_high and smc_trend == 1
+smc_mss_bear = not na(smc_last_low) and low < smc_last_low and smc_trend == -1
+
+smc_sig = show_smc ? (smc_bos_bull or smc_choch_bull or smc_mss_bull ? 1 : smc_bos_bear or smc_choch_bear or smc_mss_bear ? -1 : 0) : 0
+
+plotshape(show_smc and smc_bos_bull, "BOS Bull", shape.circle, location.belowbar, color.new(colBull, 0), size=size.tiny, text="BOS")
+plotshape(show_smc and smc_bos_bear, "BOS Bear", shape.circle, location.abovebar, color.new(colBear, 0), size=size.tiny, text="BOS")
+plotshape(show_smc and smc_choch_bull, "CHoCH Bull", shape.square, location.belowbar, color.new(colBull, 0), size=size.tiny, text="CHoCH")
+plotshape(show_smc and smc_choch_bear, "CHoCH Bear", shape.square, location.abovebar, color.new(colBear, 0), size=size.tiny, text="CHoCH")
+plotshape(show_smc and smc_mss_bull, "MSS Bull", shape.diamond, location.belowbar, color.new(colBull, 0), size=size.small, text="MSS")
+plotshape(show_smc and smc_mss_bear, "MSS Bear", shape.diamond, location.abovebar, color.new(colBear, 0), size=size.small, text="MSS")
+
+// === 💰 RISK ENGINE ===
+risk_balance    = input.float(10000.0, "Balance Account", minval=100, group=group_risk)
+risk_pct_pro    = input.float(1.0, "Risk % (Pro)", minval=0.1, maxval=5.0, group=group_risk)
+risk_pct_agg    = input.float(2.0, "Risk % (Agressif)", minval=0.1, maxval=10.0, group=group_risk)
+risk_sl_atr     = input.float(1.5, "SL ATR Multiplier", minval=0.5, group=group_risk)
+risk_tp1_rr     = input.float(1.5, "TP1 RR", minval=0.5, group=group_risk)
+risk_tp2_rr     = input.float(2.5, "TP2 RR", minval=0.5, group=group_risk)
+risk_tp3_rr     = input.float(4.0, "TP3 RR", minval=0.5, group=group_risk)
+
+risk_pct = riskStyle == "Pro" ? risk_pct_pro : risk_pct_agg
+risk_amount = risk_balance * (risk_pct / 100)
+risk_sl_dist = ta.atr(14) * risk_sl_atr
+risk_lot_size = risk_amount / risk_sl_dist
+
+// === 🧠 CONFLUENCE ENGINE ===
+conf_threshold = input.int(3, "Seuil Confluence Min", minval=1, maxval=10, group=group_sig)
+
+conf_bull_score = 0
+conf_bear_score = 0
+
+if impact_ema and ema_trend_sig == 1
+    conf_bull_score := conf_bull_score + 1
+if impact_ema and ema_trend_sig == -1
+    conf_bear_score := conf_bear_score + 1
+
+if impact_ema9 and ema9_sig == 1
+    conf_bull_score := conf_bull_score + 1
+if impact_ema9 and ema9_sig == -1
+    conf_bear_score := conf_bear_score + 1
+
+if impact_vwap and vwap_sig == 1
+    conf_bull_score := conf_bull_score + 1
+if impact_vwap and vwap_sig == -1
+    conf_bear_score := conf_bear_score + 1
+
+if impact_st and st_sig == 1
+    conf_bull_score := conf_bull_score + 1
+if impact_st and st_sig == -1
+    conf_bear_score := conf_bear_score + 1
+
+if impact_eng and eng_sig == 1
+    conf_bull_score := conf_bull_score + 1
+if impact_eng and eng_sig == -1
+    conf_bear_score := conf_bear_score + 1
+
+if impact_do and do_sig == 1
+    conf_bull_score := conf_bull_score + 1
+if impact_do and do_sig == -1
+    conf_bear_score := conf_bear_score + 1
+
+if impact_struct and struct_sig == 1
+    conf_bull_score := conf_bull_score + 1
+if impact_struct and struct_sig == -1
+    conf_bear_score := conf_bear_score + 1
+
+if impact_ob and ob_sig == 1
+    conf_bull_score := conf_bull_score + 1
+if impact_ob and ob_sig == -1
+    conf_bear_score := conf_bear_score + 1
+
+if impact_fib and fib_sig == 1
+    conf_bull_score := conf_bull_score + 1
+if impact_fib and fib_sig == -1
+    conf_bear_score := conf_bear_score + 1
+
+if impact_rsi and rsi_sig == 1
+    conf_bull_score := conf_bull_score + 1
+if impact_rsi and rsi_sig == -1
+    conf_bear_score := conf_bear_score + 1
+
+if impact_liq and liq_sig == 1
+    conf_bull_score := conf_bull_score + 1
+if impact_liq and liq_sig == -1
+    conf_bear_score := conf_bear_score + 1
+
+if impact_fvg and fvg_sig == 1
+    conf_bull_score := conf_bull_score + 1
+if impact_fvg and fvg_sig == -1
+    conf_bear_score := conf_bear_score + 1
+
+if impact_vola and vola_sig == 1
+    conf_bull_score := conf_bull_score + 1
+if impact_vola and vola_sig == -1
+    conf_bear_score := conf_bear_score + 1
+
+if impact_levels and levels_sig == 1
+    conf_bull_score := conf_bull_score + 1
+if impact_levels and levels_sig == -1
+    conf_bear_score := conf_bear_score + 1
+
+if impact_volume and vol_sig == 1
+    conf_bull_score := conf_bull_score + 1
+if impact_volume and vol_sig == -1
+    conf_bear_score := conf_bear_score + 1
+
+if impact_flags and flag_sig == 1
+    conf_bull_score := conf_bull_score + 1
+if impact_flags and flag_sig == -1
+    conf_bear_score := conf_bear_score + 1
+
+if impact_tl and tl_sig == 1
+    conf_bull_score := conf_bull_score + 1
+if impact_tl and tl_sig == -1
+    conf_bear_score := conf_bear_score + 1
+
+if impact_smc and smc_sig == 1
+    conf_bull_score := conf_bull_score + 1
+if impact_smc and smc_sig == -1
+    conf_bear_score := conf_bear_score + 1
+
+conf_bull_setup = enable_conf and conf_bull_score >= conf_threshold
+conf_bear_setup = enable_conf and conf_bear_score >= conf_threshold
+
+// === 📈 SETUP LABELS ===
+if conf_bull_setup
+    entry_price = close
+    sl_price = entry_price - risk_sl_dist
+    tp1_price = entry_price + (risk_sl_dist * risk_tp1_rr)
+    tp2_price = entry_price + (risk_sl_dist * risk_tp2_rr)
+    tp3_price = entry_price + (risk_sl_dist * risk_tp3_rr)
+    rr_ratio = risk_tp1_rr
+    
+    label_text = "🟢 LONG\nEntry: " + str.tostring(entry_price, "#.##") + "\nSL: " + str.tostring(sl_price, "#.##") + "\nTP1: " + str.tostring(tp1_price, "#.##") + " (RR:" + str.tostring(rr_ratio, "#.#") + ")\nTP2: " + str.tostring(tp2_price, "#.##") + "\nTP3: " + str.tostring(tp3_price, "#.##") + "\nLot: " + str.tostring(risk_lot_size, "#.##") + "\nScore: " + str.tostring(conf_bull_score)
+    
+    label.new(bar_index, low, label_text, color=color.new(colBull, 0), textcolor=color.white, style=label.style_label_up, size=size.normal)
+
+if conf_bear_setup
+    entry_price = close
+    sl_price = entry_price + risk_sl_dist
+    tp1_price = entry_price - (risk_sl_dist * risk_tp1_rr)
+    tp2_price = entry_price - (risk_sl_dist * risk_tp2_rr)
+    tp3_price = entry_price - (risk_sl_dist * risk_tp3_rr)
+    rr_ratio = risk_tp1_rr
+    
+    label_text = "🔴 SHORT\nEntry: " + str.tostring(entry_price, "#.##") + "\nSL: " + str.tostring(sl_price, "#.##") + "\nTP1: " + str.tostring(tp1_price, "#.##") + " (RR:" + str.tostring(rr_ratio, "#.#") + ")\nTP2: " + str.tostring(tp2_price, "#.##") + "\nTP3: " + str.tostring(tp3_price, "#.##") + "\nLot: " + str.tostring(risk_lot_size, "#.##") + "\nScore: " + str.tostring(conf_bear_score)
+    
+    label.new(bar_index, high, label_text, color=color.new(colBear, 0), textcolor=color.white, style=label.style_label_down, size=size.normal)
+
+// === 📊 DASHBOARD MTF BIAS ===
+dash_x = input.int(0, "Position X", minval=-100, maxval=100, group=group_dash_full)
+dash_y = input.int(0, "Position Y", minval=-100, maxval=100, group=group_dash_full)
+
+mtf_1m   = request.security(syminfo.tickerid, "1", close > ta.ema(close, 20) ? 1 : -1, lookahead=barmerge.lookahead_off)
+mtf_5m   = request.security(syminfo.tickerid, "5", close > ta.ema(close, 20) ? 1 : -1, lookahead=barmerge.lookahead_off)
+mtf_15m  = request.security(syminfo.tickerid, "15", close > ta.ema(close, 20) ? 1 : -1, lookahead=barmerge.lookahead_off)
+mtf_30m  = request.security(syminfo.tickerid, "30", close > ta.ema(close, 20) ? 1 : -1, lookahead=barmerge.lookahead_off)
+mtf_1h   = request.security(syminfo.tickerid, "60", close > ta.ema(close, 20) ? 1 : -1, lookahead=barmerge.lookahead_off)
+mtf_4h   = request.security(syminfo.tickerid, "240", close > ta.ema(close, 20) ? 1 : -1, lookahead=barmerge.lookahead_off)
+mtf_1d   = request.security(syminfo.tickerid, "D", close > ta.ema(close, 20) ? 1 : -1, lookahead=barmerge.lookahead_off)
+mtf_1w   = request.security(syminfo.tickerid, "W", close > ta.ema(close, 20) ? 1 : -1, lookahead=barmerge.lookahead_off)
+
+mtf_score = mtf_1m + mtf_5m + mtf_15m + mtf_30m + mtf_1h + mtf_4h + mtf_1d + mtf_1w
+mtf_bias = mtf_score > 0 ? "🟢 BULLISH" : mtf_score < 0 ? "🔴 BEARISH" : "⚪ NEUTRAL"
+
+var table dash_table = na
+if show_dash and barstate.islast
+    if not na(dash_table)
+        table.delete(dash_table)
+    
+    dash_table := table.new(position.top_right, 3, 20, bgcolor=color.new(colDark, 0), border_width=2, border_color=color.new(colGold, 0))
+    
+    // Header
+    table.cell(dash_table, 0, 0, "AI GOLD MASTER Ω", text_color=color.new(colGold, 0), text_size=size.normal, bgcolor=color.new(colDark, 0))
+    table.cell(dash_table, 1, 0, "STATUS", text_color=color.new(colGold, 0), text_size=size.small, bgcolor=color.new(colDark, 0))
+    table.cell(dash_table, 2, 0, "SCORE", text_color=color.new(colGold, 0), text_size=size.small, bgcolor=color.new(colDark, 0))
+    
+    // Row 1: Mode
+    table.cell(dash_table, 0, 1, "Mode: " + tradingMode + " / " + riskStyle, text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 1, 1, "", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 2, 1, "", text_color=color.white, text_size=size.small)
+    
+    // Row 2: EMA Trend
+    table.cell(dash_table, 0, 2, "📐 EMA Trend", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 1, 2, ema_trend_sig == 1 ? "🟢 BULL" : ema_trend_sig == -1 ? "🔴 BEAR" : "⚪ NEUTRE", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 2, 2, str.tostring(ema_trend_sig), text_color=color.white, text_size=size.small)
+    
+    // Row 3: EMA9
+    table.cell(dash_table, 0, 3, "⚡ EMA9 Mom", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 1, 3, ema9_sig == 1 ? "🟢 BULL" : "🔴 BEAR", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 2, 3, str.tostring(ema9_sig), text_color=color.white, text_size=size.small)
+    
+    // Row 4: VWAP
+    table.cell(dash_table, 0, 4, "📍 VWAP", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 1, 4, vwap_sig == 1 ? "🟢 BULL" : "🔴 BEAR", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 2, 4, str.tostring(vwap_sig), text_color=color.white, text_size=size.small)
+    
+    // Row 5: Supertrend
+    table.cell(dash_table, 0, 5, "📈 Supertrend", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 1, 5, st_sig == 1 ? "🟢 BULL" : "🔴 BEAR", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 2, 5, str.tostring(st_sig), text_color=color.white, text_size=size.small)
+    
+    // Row 6: Structure
+    table.cell(dash_table, 0, 6, "🔹 Structure", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 1, 6, struct_sig == 1 ? "🟢 HH/HL" : struct_sig == -1 ? "🔴 LL/LH" : "⚪", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 2, 6, str.tostring(struct_sig), text_color=color.white, text_size=size.small)
+    
+    // Row 7: RSI Div
+    table.cell(dash_table, 0, 7, "💠 RSI Div", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 1, 7, rsi_sig == 1 ? "🟢 BULL" : rsi_sig == -1 ? "🔴 BEAR" : "⚪", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 2, 7, str.tostring(rsi_sig), text_color=color.white, text_size=size.small)
+    
+    // Row 8: Volume
+    table.cell(dash_table, 0, 8, "📊 Volume", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 1, 8, vol_sig == 1 ? "🟢 SPIKE+" : vol_sig == -1 ? "🔴 SPIKE-" : "⚪", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 2, 8, str.tostring(vol_sig), text_color=color.white, text_size=size.small)
+    
+    // Row 9: FVG
+    table.cell(dash_table, 0, 9, "📐 FVG", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 1, 9, fvg_sig == 1 ? "🟢 BULL" : fvg_sig == -1 ? "🔴 BEAR" : "⚪", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 2, 9, str.tostring(fvg_sig), text_color=color.white, text_size=size.small)
+    
+    // Row 10: Liquidity
+    table.cell(dash_table, 0, 10, "💧 Liquidity", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 1, 10, liq_sig == 1 ? "🟢 SWEEP+" : liq_sig == -1 ? "🔴 SWEEP-" : "⚪", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 2, 10, str.tostring(liq_sig), text_color=color.white, text_size=size.small)
+    
+    // Row 11: SMC
+    table.cell(dash_table, 0, 11, "🔷 SMC", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 1, 11, smc_sig == 1 ? "🟢 BOS/MSS" : smc_sig == -1 ? "🔴 BOS/MSS" : "⚪", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 2, 11, str.tostring(smc_sig), text_color=color.white, text_size=size.small)
+    
+    // Row 12: Volatility
+    table.cell(dash_table, 0, 12, "📏 Volatilité", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 1, 12, "ATR: " + str.tostring(atr_pct, "#.##") + "%", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 2, 12, str.tostring(vola_sig), text_color=color.white, text_size=size.small)
+    
+    // Row 13: Separator
+    table.cell(dash_table, 0, 13, "━━━━━━━━━━━━━", text_color=color.new(colGold, 0), text_size=size.small)
+    table.cell(dash_table, 1, 13, "━━━━━━━━", text_color=color.new(colGold, 0), text_size=size.small)
+    table.cell(dash_table, 2, 13, "━━━━━", text_color=color.new(colGold, 0), text_size=size.small)
+    
+    // Row 14: Confluence
+    table.cell(dash_table, 0, 14, "🧠 CONFLUENCE", text_color=color.new(colGold, 0), text_size=size.normal)
+    table.cell(dash_table, 1, 14, conf_bull_setup ? "🟢 LONG SETUP" : conf_bear_setup ? "🔴 SHORT SETUP" : "⚪ WAIT", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 2, 14, "↑" + str.tostring(conf_bull_score) + " ↓" + str.tostring(conf_bear_score), text_color=color.white, text_size=size.small)
+    
+    // Row 15: MTF Bias Header
+    table.cell(dash_table, 0, 15, "━━━ MTF BIAS ━━━", text_color=color.new(colGold, 0), text_size=size.small)
+    table.cell(dash_table, 1, 15, "", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 2, 15, "", text_color=color.white, text_size=size.small)
+    
+    // Row 16: MTF Details
+    table.cell(dash_table, 0, 16, "1m:" + (mtf_1m == 1 ? "🟢" : "🔴") + " 5m:" + (mtf_5m == 1 ? "🟢" : "🔴") + " 15m:" + (mtf_15m == 1 ? "🟢" : "🔴") + " 30m:" + (mtf_30m == 1 ? "🟢" : "🔴"), text_color=color.white, text_size=size.tiny)
+    table.cell(dash_table, 1, 16, "", text_color=color.white, text_size=size.tiny)
+    table.cell(dash_table, 2, 16, "", text_color=color.white, text_size=size.tiny)
+    
+    // Row 17: MTF Details 2
+    table.cell(dash_table, 0, 17, "1h:" + (mtf_1h == 1 ? "🟢" : "🔴") + " 4h:" + (mtf_4h == 1 ? "🟢" : "🔴") + " 1D:" + (mtf_1d == 1 ? "🟢" : "🔴") + " 1W:" + (mtf_1w == 1 ? "🟢" : "🔴"), text_color=color.white, text_size=size.tiny)
+    table.cell(dash_table, 1, 17, "", text_color=color.white, text_size=size.tiny)
+    table.cell(dash_table, 2, 17, "", text_color=color.white, text_size=size.tiny)
+    
+    // Row 18: General Bias
+    table.cell(dash_table, 0, 18, "BIAS GÉNÉRAL", text_color=color.new(colGold, 0), text_size=size.small)
+    table.cell(dash_table, 1, 18, mtf_bias, text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 2, 18, str.tostring(mtf_score) + "/8", text_color=color.white, text_size=size.small)
+    
+    // Row 19: Risk Info
+    table.cell(dash_table, 0, 19, "💰 Lot Size: " + str.tostring(risk_lot_size, "#.##"), text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 1, 19, "Risk: " + str.tostring(risk_pct, "#.#") + "%", text_color=color.white, text_size=size.small)
+    table.cell(dash_table, 2, 19, "SL: " + str.tostring(risk_sl_dist, "#.##"), text_color=color.white, text_size=size.small)
+
+// === ✅ COMPILATION CHECK ===
+plot(na, title="AI_GOLD_MASTER_OMEGA_v1.5_COMPLETE")
