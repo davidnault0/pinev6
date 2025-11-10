@@ -12,5 +12,11 @@ venv/
 dist/
 build/
 
+# Archives
+*.zip
+
+# Temporary folders
+pine-codex-starter/
+
 # Logs
 *.log
