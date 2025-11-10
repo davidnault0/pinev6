@@ -1,0 +1,5 @@
+//@version=6
+indicator("Module: VWAP (example)", shorttitle="MOD-VWAP", overlay=true)
+v = ta.vwap(hlc3)
+dirUp = v >= v[1]
+plot(v, "VWAP", color=dirUp ? color.lime : color.red, linewidth=2)

@@ -1,0 +1,11 @@
+{
+    "files.associations": {
+        "*.pine": "pinescript"
+    },
+    "editor.tabSize": 4,
+    "editor.rulers": [100],
+    "editor.renderWhitespace": "boundary",
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "editor.formatOnSave": false
+}

@@ -1,0 +1,30 @@
+{
+    "Pine v6 indicator header": {
+        "prefix": "pine6-indicator",
+        "body": [
+            "//@version=6",
+            "indicator(\"${1:Indicator Name}\", shorttitle=\"${2:SHORT}\", overlay=true, scale=scale.right, max_labels_count=500, max_lines_count=500)",
+            "",
+            "// === Inputs ===",
+            "group_style = \"\uD83C\uDFA8 Style Global\"",
+            "colGold = input.color(color.rgb(212,175,55), \"Gold\", group=group_style)",
+            "",
+            "// === Logic ===",
+            "${0:// code}",
+            ""
+        ],
+        "description": "Minimal Pine v6 indicator header"
+    },
+    "Pine v6 strategy header": {
+        "prefix": "pine6-strategy",
+        "body": [
+            "//@version=6",
+            "strategy(\"${1:Strategy Name}\", overlay=true, initial_capital=10000, commission_type=strategy.commission.percent, commission_value=0.01)",
+            "",
+            "// === Logic ===",
+            "${0:// code}",
+            ""
+        ],
+        "description": "Minimal Pine v6 strategy header"
+    }
+}

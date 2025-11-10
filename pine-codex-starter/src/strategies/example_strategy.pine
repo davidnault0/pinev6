@@ -1,0 +1,13 @@
+//@version=6
+strategy("Example Strategy – Pine v6", overlay=true, initial_capital=10000)
+
+len = input.int(20, "EMA Len")
+ema = ta.ema(close, len)
+
+longCond  = ta.crossover(close, ema)
+shortCond = ta.crossunder(close, ema)
+
+if (longCond)
+    strategy.entry("Long", strategy.long)
+if (shortCond)
+    strategy.entry("Short", strategy.short)

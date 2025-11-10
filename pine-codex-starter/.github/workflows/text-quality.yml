@@ -1,0 +1,21 @@
+name: text-quality
+on:
+  push:
+  pull_request:
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Strip trailing whitespace and ensure EOF newline
+        run: |
+          set -e
+          changed=0
+          while IFS= read -r -d '' f; do
+            sed -i 's/[ 	]*$//' "$f"
+            # Ensure file ends with newline
+            tail -c1 "$f" | od -An -t o1 | grep -q '012' || echo >> "$f"
+          done < <(git ls-files -z)
+          if ! git diff --exit-code; then
+            echo "::warning::Found formatting issues. Please commit the changes."
+          fi
