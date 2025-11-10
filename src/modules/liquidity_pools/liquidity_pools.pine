@@ -1,0 +1,163 @@
+//@version=6
+// 💧 Liquidity Pools / EQH-EQL / Sweeps Module
+// Detection of liquidity zones, equal highs/lows, and sweeps
+
+// ═══════════════════════════════════════════════════════════════════════
+// ⚙️ INPUTS & TOGGLES
+// ═══════════════════════════════════════════════════════════════════════
+
+bool showLiquidity = input.bool(true, "👁️ Show Liquidity", group="💧 Liquidity")
+bool impactConfluence = input.bool(true, "⚡ Impact Confluence", group="💧 Liquidity")
+
+int liqLookback = input.int(50, "Lookback Period", minval=10, group="💧 Liquidity")
+float liqTolerance = input.float(0.002, "EQH/EQL Tolerance %", minval=0.0001, step=0.0001, group="💧 Liquidity")
+bool showSweeps = input.bool(true, "Show Sweeps", group="💧 Liquidity")
+
+// Colors
+color COLOR_GREEN = #089981
+color COLOR_RED = #F23645
+color COLOR_GOLD = #D4AF37
+color COLOR_PURPLE = #9C27B0
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 EQUAL HIGHS (EQH) DETECTION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Find highest high in lookback
+float hhPrice = ta.highest(high, liqLookback)
+int hhBar = ta.highestbars(high, liqLookback) + bar_index
+
+// Count equal highs within tolerance
+int eqhCount = 0
+for i = 1 to liqLookback
+    float testHigh = high[i]
+    if math.abs(testHigh - hhPrice) / hhPrice <= liqTolerance
+        eqhCount += 1
+
+bool hasEQH = eqhCount >= 2
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 EQUAL LOWS (EQL) DETECTION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Find lowest low in lookback
+float llPrice = ta.lowest(low, liqLookback)
+int llBar = ta.lowestbars(low, liqLookback) + bar_index
+
+// Count equal lows within tolerance
+int eqlCount = 0
+for i = 1 to liqLookback
+    float testLow = low[i]
+    if math.abs(testLow - llPrice) / llPrice <= liqTolerance
+        eqlCount += 1
+
+bool hasEQL = eqlCount >= 2
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 LIQUIDITY SWEEP DETECTION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Bullish sweep: Price breaks above EQH then quickly reverses down
+bool bullSweep = hasEQH and high > hhPrice and close < hhPrice and close < open
+
+// Bearish sweep: Price breaks below EQL then quickly reverses up
+bool bearSweep = hasEQL and low < llPrice and close > llPrice and close > open
+
+// Recent sweep detection (last 5 bars)
+bool recentBullSweep = ta.barssince(bullSweep) <= 5
+bool recentBearSweep = ta.barssince(bearSweep) <= 5
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🎨 VISUALIZATION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Draw EQH line
+var line eqhLine = na
+if showLiquidity and hasEQH
+    line.delete(eqhLine)
+    eqhLine := line.new(
+         bar_index - liqLookback, hhPrice,
+         bar_index, hhPrice,
+         color=color.new(COLOR_RED, 40),
+         width=2,
+         style=line.style_dashed,
+         extend=extend.right)
+
+// Draw EQL line
+var line eqlLine = na
+if showLiquidity and hasEQL
+    line.delete(eqlLine)
+    eqlLine := line.new(
+         bar_index - liqLookback, llPrice,
+         bar_index, llPrice,
+         color=color.new(COLOR_GREEN, 40),
+         width=2,
+         style=line.style_dashed,
+         extend=extend.right)
+
+// Mark sweep points
+plotshape(showLiquidity and showSweeps and bullSweep, "Bull Sweep",
+     shape.xcross, location.abovebar, COLOR_PURPLE, size=size.small)
+
+plotshape(showLiquidity and showSweeps and bearSweep, "Bear Sweep",
+     shape.xcross, location.belowbar, COLOR_PURPLE, size=size.small)
+
+// Labels for liquidity zones
+if showLiquidity and hasEQH
+    label.new(bar_index, hhPrice, "EQH", 
+         style=label.style_label_left,
+         color=color.new(COLOR_RED, 70),
+         textcolor=COLOR_RED,
+         size=size.tiny)
+
+if showLiquidity and hasEQL
+    label.new(bar_index, llPrice, "EQL", 
+         style=label.style_label_left,
+         color=color.new(COLOR_GREEN, 70),
+         textcolor=COLOR_GREEN,
+         size=size.tiny)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔔 ALERTS
+// ═══════════════════════════════════════════════════════════════════════
+
+alertcondition(bullSweep, "Bull Liquidity Sweep", "Bullish liquidity sweep detected!")
+alertcondition(bearSweep, "Bear Liquidity Sweep", "Bearish liquidity sweep detected!")
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🧠 CONFLUENCE SCORING
+// ═══════════════════════════════════════════════════════════════════════
+
+// Liquidity score (high weight)
+float liqScore = 0.0
+
+if recentBearSweep  // Bearish sweep = Bullish setup
+    liqScore := 80.0
+else if recentBullSweep  // Bullish sweep = Bearish setup
+    liqScore := -80.0
+else if hasEQL and close < llPrice  // Near EQL support
+    liqScore := 40.0
+else if hasEQH and close > hhPrice  // Near EQH resistance
+    liqScore := -40.0
+
+float liquidityConfluence = impactConfluence ? liqScore : 0
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 DASHBOARD OUTPUT
+// ═══════════════════════════════════════════════════════════════════════
+
+// Row 12: Liquidity status
+string liqStatus = recentBearSweep ? "🟢 BEAR SWEEP" :
+                   recentBullSweep ? "🔴 BULL SWEEP" :
+                   hasEQH or hasEQL ? "⚠️ EQH/EQL" :
+                   "⚪ NONE"
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔄 EXPORTS
+// ═══════════════════════════════════════════════════════════════════════
+
+// Variables to export:
+// - hasEQH, hasEQL (bool)
+// - hhPrice, llPrice (float)
+// - recentBullSweep, recentBearSweep (bool)
+// - liquidityConfluence (float)

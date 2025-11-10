@@ -1,0 +1,154 @@
+//@version=6
+// 🧭 Global Mode Module
+// Manages Pro/Aggressive style and Scalp/Intraday/Swing strategy modes
+
+// ═══════════════════════════════════════════════════════════════════════
+// ⚙️ MODE INPUTS
+// ═══════════════════════════════════════════════════════════════════════
+
+// Trading Style Mode
+string styleMode = input.string("Pro", "📊 Trading Style", 
+     options=["Pro", "Aggressive"], 
+     tooltip="Pro = Strict filtering, fewer but higher quality signals\nAggressive = Faster signals, more opportunities",
+     group="🧭 Global Mode")
+
+// Strategy Timeframe Mode
+string strategyMode = input.string("Intraday", "⏰ Strategy Mode", 
+     options=["Scalp", "Intraday", "Swing"], 
+     tooltip="Auto-adjusts lengths, ATR multipliers, and thresholds",
+     group="🧭 Global Mode")
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 MODE PRESETS
+// ═══════════════════════════════════════════════════════════════════════
+
+// Style Mode Multipliers
+float styleMultiplier = styleMode == "Pro" ? 1.0 : 0.7
+int styleConfidenceMin = styleMode == "Pro" ? 70 : 50
+int styleFilterStrength = styleMode == "Pro" ? 3 : 2
+
+// Strategy Mode - EMA Lengths
+int emaFastLen = strategyMode == "Scalp" ? 9 : 
+                 strategyMode == "Intraday" ? 9 : 20
+
+int emaMediumLen = strategyMode == "Scalp" ? 21 : 
+                   strategyMode == "Intraday" ? 50 : 50
+
+int emaSlowLen = strategyMode == "Scalp" ? 50 : 
+                 strategyMode == "Intraday" ? 100 : 100
+
+int emaStructureLen = strategyMode == "Scalp" ? 100 : 
+                      strategyMode == "Intraday" ? 200 : 200
+
+// Strategy Mode - Supertrend Settings
+int supertrendPeriod = strategyMode == "Scalp" ? 7 : 
+                       strategyMode == "Intraday" ? 10 : 14
+
+float supertrendMultiplier = strategyMode == "Scalp" ? 2.0 : 
+                             strategyMode == "Intraday" ? 3.0 : 4.0
+
+// Strategy Mode - ATR Settings
+int atrPeriod = strategyMode == "Scalp" ? 10 : 
+                strategyMode == "Intraday" ? 14 : 20
+
+float atrStopMultiplier = strategyMode == "Scalp" ? 1.5 : 
+                          strategyMode == "Intraday" ? 2.0 : 2.5
+
+float atrTakeProfitMultiplier = strategyMode == "Scalp" ? 2.0 : 
+                                strategyMode == "Intraday" ? 3.0 : 4.0
+
+// Strategy Mode - Volume Settings
+int volumePeriod = strategyMode == "Scalp" ? 10 : 
+                   strategyMode == "Intraday" ? 20 : 30
+
+float volumeThreshold = strategyMode == "Scalp" ? 1.2 : 
+                        strategyMode == "Intraday" ? 1.5 : 2.0
+
+// Strategy Mode - Structure Settings (Zigzag)
+float structureDepth = strategyMode == "Scalp" ? 5.0 : 
+                       strategyMode == "Intraday" ? 10.0 : 15.0
+
+int structureBacktrack = strategyMode == "Scalp" ? 3 : 
+                         strategyMode == "Intraday" ? 5 : 8
+
+// Strategy Mode - Order Block Settings
+int obLookback = strategyMode == "Scalp" ? 10 : 
+                 strategyMode == "Intraday" ? 20 : 50
+
+int obMaxBlocks = strategyMode == "Scalp" ? 3 : 
+                  strategyMode == "Intraday" ? 5 : 10
+
+// Strategy Mode - Liquidity Settings
+int liquidityLookback = strategyMode == "Scalp" ? 20 : 
+                        strategyMode == "Intraday" ? 50 : 100
+
+float liquidityTolerance = strategyMode == "Scalp" ? 0.001 : 
+                           strategyMode == "Intraday" ? 0.002 : 0.005
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔧 MODE HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════
+
+// @function Check if signal meets style mode threshold
+// @param score Signal confidence score (0-100)
+// @returns bool True if signal is valid for current style
+isSignalValid(float score) =>
+    score >= styleConfidenceMin
+
+// @function Get adaptive threshold based on modes
+// @param baseThreshold Base threshold value
+// @returns float Adjusted threshold
+getAdaptiveThreshold(float baseThreshold) =>
+    baseThreshold * styleMultiplier
+
+// @function Get risk multiplier based on strategy mode
+// @returns float Risk multiplier
+getRiskMultiplier() =>
+    strategyMode == "Scalp" ? 0.5 : 
+    strategyMode == "Intraday" ? 1.0 : 
+    1.5
+
+// @function Get timeframe string for MTF analysis
+// @param tfIndex Index of timeframe (0-7)
+// @returns string Timeframe string
+getMTFTimeframe(int tfIndex) =>
+    if strategyMode == "Scalp"
+        tfIndex == 0 ? "1" : tfIndex == 1 ? "3" : tfIndex == 2 ? "5" : 
+        tfIndex == 3 ? "15" : tfIndex == 4 ? "30" : tfIndex == 5 ? "60" : 
+        tfIndex == 6 ? "240" : "D"
+    else if strategyMode == "Intraday"
+        tfIndex == 0 ? "5" : tfIndex == 1 ? "15" : tfIndex == 2 ? "30" : 
+        tfIndex == 3 ? "60" : tfIndex == 4 ? "240" : tfIndex == 5 ? "D" : 
+        tfIndex == 6 ? "W" : "M"
+    else // Swing
+        tfIndex == 0 ? "60" : tfIndex == 1 ? "240" : tfIndex == 2 ? "D" : 
+        tfIndex == 3 ? "W" : tfIndex == 4 ? "M" : tfIndex == 5 ? "3M" : 
+        tfIndex == 6 ? "6M" : "12M"
+
+// @function Get mode display string
+// @returns string Mode description
+getModeDisplay() =>
+    "[" + styleMode + " | " + strategyMode + "]"
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 MODE INDICATOR (Visual Display)
+// ═══════════════════════════════════════════════════════════════════════
+
+// Display mode in corner label
+var label modeLabel = na
+if barstate.islast
+    label.delete(modeLabel)
+    modeLabel := label.new(
+         bar_index, high, 
+         getModeDisplay(),
+         style=label.style_label_down,
+         color=#2B2B2B,
+         textcolor=#D4AF37,
+         size=size.small)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔄 EXPORTS
+// ═══════════════════════════════════════════════════════════════════════
+
+// Copy these variables and functions into your main indicator
+// Adjust module calculations based on these preset values

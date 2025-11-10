@@ -1,0 +1,149 @@
+//@version=6
+// 🔹 Structure HH/HL vs LL/LH Module
+// Market structure analysis using lightweight zigzag
+
+// ═══════════════════════════════════════════════════════════════════════
+// ⚙️ INPUTS & TOGGLES
+// ═══════════════════════════════════════════════════════════════════════
+
+bool showStructure = input.bool(true, "👁️ Show Structure", group="🔹 Structure")
+bool impactConfluence = input.bool(true, "⚡ Impact Confluence", group="🔹 Structure")
+
+float structureDepth = input.float(10.0, "Zigzag Depth %", minval=1.0, step=0.5, group="🔹 Structure")
+int structureBacktrack = input.int(5, "Pivot Backtrack", minval=1, group="🔹 Structure")
+
+// Colors
+color COLOR_GREEN = #089981
+color COLOR_RED = #F23645
+color COLOR_GOLD = #D4AF37
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 PIVOT DETECTION (Lightweight Zigzag)
+// ═══════════════════════════════════════════════════════════════════════
+
+// Pivot High detection
+float ph = ta.pivothigh(high, structureBacktrack, structureBacktrack)
+float phPrice = na(ph) ? na : ph
+int phBar = na(ph) ? na : bar_index - structureBacktrack
+
+// Pivot Low detection  
+float pl = ta.pivotlow(low, structureBacktrack, structureBacktrack)
+float plPrice = na(pl) ? na : pl
+int plBar = na(pl) ? na : bar_index - structureBacktrack
+
+// Store last pivots
+var float lastHigh = na
+var float lastLow = na
+var int lastHighBar = na
+var int lastLowBar = na
+
+// Update on new pivot
+if not na(phPrice)
+    lastHigh := phPrice
+    lastHighBar := phBar
+
+if not na(plPrice)
+    lastLow := plPrice
+    lastLowBar := plBar
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 STRUCTURE CLASSIFICATION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Track previous pivots for comparison
+var float prevHigh = na
+var float prevLow = na
+
+// Higher High (HH) / Lower High (LH)
+bool isHH = not na(lastHigh) and not na(prevHigh) and lastHigh > prevHigh
+bool isLH = not na(lastHigh) and not na(prevHigh) and lastHigh < prevHigh
+
+// Higher Low (HL) / Lower Low (LL)
+bool isHL = not na(lastLow) and not na(prevLow) and lastLow > prevLow
+bool isLL = not na(lastLow) and not na(prevLow) and lastLow < prevLow
+
+// Update previous pivots
+if not na(phPrice)
+    prevHigh := lastHigh
+
+if not na(plPrice)
+    prevLow := lastLow
+
+// Overall structure state
+// 1 = Bullish (HH + HL), -1 = Bearish (LH + LL), 0 = Mixed/Neutral
+int structureState = (isHH or isHL) and not (isLH or isLL) ? 1 :
+                     (isLH or isLL) and not (isHH or isHL) ? -1 : 0
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🎨 VISUALIZATION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Plot pivot highs
+plotshape(showStructure and not na(phPrice), "Pivot High", 
+     shape.triangledown, location.abovebar, 
+     isHH ? COLOR_GREEN : isLH ? COLOR_RED : COLOR_GOLD, 
+     size=size.tiny)
+
+// Plot pivot lows
+plotshape(showStructure and not na(plPrice), "Pivot Low", 
+     shape.triangleup, location.belowbar, 
+     isHL ? COLOR_GREEN : isLL ? COLOR_RED : COLOR_GOLD, 
+     size=size.tiny)
+
+// Labels for structure
+if showStructure and not na(phPrice)
+    string labelText = isHH ? "HH" : isLH ? "LH" : "H"
+    label.new(phBar, phPrice, labelText, 
+         style=label.style_label_down,
+         color=isHH ? COLOR_GREEN : isLH ? COLOR_RED : COLOR_GOLD,
+         textcolor=color.white,
+         size=size.tiny)
+
+if showStructure and not na(plPrice)
+    string labelText = isHL ? "HL" : isLL ? "LL" : "L"
+    label.new(plBar, plPrice, labelText, 
+         style=label.style_label_up,
+         color=isHL ? COLOR_GREEN : isLL ? COLOR_RED : COLOR_GOLD,
+         textcolor=color.white,
+         size=size.tiny)
+
+// Draw lines connecting pivots (optional)
+var line structureLine = na
+if showStructure and not na(lastHighBar) and not na(lastLowBar)
+    line.delete(structureLine)
+    structureLine := line.new(
+         lastLowBar, lastLow,
+         lastHighBar, lastHigh,
+         color=structureState == 1 ? COLOR_GREEN : COLOR_RED,
+         width=1,
+         style=line.style_dashed)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🧠 CONFLUENCE SCORING
+// ═══════════════════════════════════════════════════════════════════════
+
+// Structure score based on clarity
+float structureScore = structureState == 1 ? 75.0 : 
+                       structureState == -1 ? -75.0 : 
+                       0.0
+
+float structureConfluence = impactConfluence ? structureScore : 0
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 DASHBOARD OUTPUT
+// ═══════════════════════════════════════════════════════════════════════
+
+// Row 4: Structure status
+string structStatus = structureState == 1 ? "🟢 HH/HL" : 
+                      structureState == -1 ? "🔴 LH/LL" : 
+                      "⚪ MIXED"
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔄 EXPORTS
+// ═══════════════════════════════════════════════════════════════════════
+
+// Variables to export:
+// - structureState (1/-1/0)
+// - lastHigh, lastLow (for OB/Fibo calculations)
+// - structureConfluence (for Confluence Engine)
+// - lastHighBar, lastLowBar (for drawing zones)
