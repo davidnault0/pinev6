@@ -1,0 +1,214 @@
+//@version=6
+// 💠 RSI Divergence (MTF) Module
+// Multi-Timeframe RSI Divergence detection
+
+// ═══════════════════════════════════════════════════════════════════════
+// ⚙️ INPUTS & TOGGLES
+// ═══════════════════════════════════════════════════════════════════════
+
+bool showRSI = input.bool(true, "👁️ Show RSI Divergence", group="💠 RSI Divergence")
+bool impactConfluence = input.bool(true, "⚡ Impact Confluence", group="💠 RSI Divergence")
+
+int rsiLength = input.int(14, "RSI Length", minval=2, group="💠 RSI Divergence")
+int pivotLookback = input.int(5, "Pivot Lookback", minval=1, group="💠 RSI Divergence")
+
+// MTF settings
+bool useMTF = input.bool(true, "Enable MTF Analysis", group="💠 RSI Divergence")
+string mtfTimeframe = input.timeframe("60", "Higher Timeframe", group="💠 RSI Divergence")
+
+// Colors
+color COLOR_GREEN = #089981
+color COLOR_RED = #F23645
+color COLOR_GOLD = #D4AF37
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 RSI CALCULATION
+// ═══════════════════════════════════════════════════════════════════════
+
+float rsi = ta.rsi(close, rsiLength)
+
+// MTF RSI
+float rsiMTF = useMTF ? request.security(syminfo.tickerid, mtfTimeframe, 
+     ta.rsi(close, rsiLength), barmerge.gaps_off, barmerge.lookahead_off) : rsi
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 PIVOT DETECTION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Price pivots
+float pricePivotHigh = ta.pivothigh(high, pivotLookback, pivotLookback)
+float pricePivotLow = ta.pivotlow(low, pivotLookback, pivotLookback)
+
+// RSI pivots
+float rsiPivotHigh = ta.pivothigh(rsi, pivotLookback, pivotLookback)
+float rsiPivotLow = ta.pivotlow(rsi, pivotLookback, pivotLookback)
+
+// Store last two pivots
+var float lastPriceHigh = na
+var float lastPriceHighBar = na
+var float prevPriceHigh = na
+var float prevPriceHighBar = na
+
+var float lastPriceLow = na
+var float lastPriceLowBar = na
+var float prevPriceLow = na
+var float prevPriceLowBar = na
+
+var float lastRSIHigh = na
+var float prevRSIHigh = na
+
+var float lastRSILow = na
+var float prevRSILow = na
+
+// Update price highs
+if not na(pricePivotHigh)
+    prevPriceHigh := lastPriceHigh
+    prevPriceHighBar := lastPriceHighBar
+    lastPriceHigh := pricePivotHigh
+    lastPriceHighBar := bar_index - pivotLookback
+
+// Update price lows
+if not na(pricePivotLow)
+    prevPriceLow := lastPriceLow
+    prevPriceLowBar := lastPriceLowBar
+    lastPriceLow := pricePivotLow
+    lastPriceLowBar := bar_index - pivotLookback
+
+// Update RSI highs
+if not na(rsiPivotHigh)
+    prevRSIHigh := lastRSIHigh
+    lastRSIHigh := rsiPivotHigh
+
+// Update RSI lows
+if not na(rsiPivotLow)
+    prevRSILow := lastRSILow
+    lastRSILow := rsiPivotLow
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 DIVERGENCE DETECTION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Bullish Divergence: Price makes lower low, RSI makes higher low
+bool bullishDiv = not na(lastPriceLow) and not na(prevPriceLow) and
+                  not na(lastRSILow) and not na(prevRSILow) and
+                  lastPriceLow < prevPriceLow and  // Lower price low
+                  lastRSILow > prevRSILow          // Higher RSI low
+
+// Bearish Divergence: Price makes higher high, RSI makes lower high
+bool bearishDiv = not na(lastPriceHigh) and not na(prevPriceHigh) and
+                  not na(lastRSIHigh) and not na(prevRSIHigh) and
+                  lastPriceHigh > prevPriceHigh and  // Higher price high
+                  lastRSIHigh < prevRSIHigh          // Lower RSI high
+
+// Hidden Bullish Divergence: Price higher low, RSI lower low (trend continuation)
+bool hiddenBullDiv = not na(lastPriceLow) and not na(prevPriceLow) and
+                     not na(lastRSILow) and not na(prevRSILow) and
+                     lastPriceLow > prevPriceLow and  // Higher price low
+                     lastRSILow < prevRSILow          // Lower RSI low
+
+// Hidden Bearish Divergence: Price lower high, RSI higher high (trend continuation)
+bool hiddenBearDiv = not na(lastPriceHigh) and not na(prevPriceHigh) and
+                     not na(lastRSIHigh) and not na(prevRSIHigh) and
+                     lastPriceHigh < prevPriceHigh and  // Lower price high
+                     lastRSIHigh > prevRSIHigh          // Higher RSI high
+
+// Recent divergence (within last 10 bars)
+bool recentBullDiv = ta.barssince(bullishDiv) <= 10
+bool recentBearDiv = ta.barssince(bearishDiv) <= 10
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🎨 VISUALIZATION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Draw divergence lines
+if showRSI and bullishDiv and not na(lastPriceLowBar) and not na(prevPriceLowBar)
+    line.new(prevPriceLowBar, prevPriceLow, lastPriceLowBar, lastPriceLow,
+         color=COLOR_GREEN, width=2, style=line.style_dashed)
+    
+    label.new(lastPriceLowBar, lastPriceLow, "BULL DIV",
+         style=label.style_label_up,
+         color=COLOR_GREEN,
+         textcolor=color.white,
+         size=size.small)
+
+if showRSI and bearishDiv and not na(lastPriceHighBar) and not na(prevPriceHighBar)
+    line.new(prevPriceHighBar, prevPriceHigh, lastPriceHighBar, lastPriceHigh,
+         color=COLOR_RED, width=2, style=line.style_dashed)
+    
+    label.new(lastPriceHighBar, lastPriceHigh, "BEAR DIV",
+         style=label.style_label_down,
+         color=COLOR_RED,
+         textcolor=color.white,
+         size=size.small)
+
+// Mark hidden divergences (smaller markers)
+plotshape(showRSI and hiddenBullDiv, "Hidden Bull Div", 
+     shape.circle, location.belowbar, color.new(COLOR_GREEN, 50), size=size.tiny)
+
+plotshape(showRSI and hiddenBearDiv, "Hidden Bear Div", 
+     shape.circle, location.abovebar, color.new(COLOR_RED, 50), size=size.tiny)
+
+// RSI level plot (optional, in separate pane)
+hline(70, "Overbought", color.new(COLOR_RED, 70), hline.style_dashed)
+hline(30, "Oversold", color.new(COLOR_GREEN, 70), hline.style_dashed)
+hline(50, "Midline", color.gray, hline.style_dotted)
+
+plot(rsi, "RSI", COLOR_GOLD, linewidth=1)
+plot(useMTF ? rsiMTF : na, "RSI MTF", color.new(color.blue, 40), linewidth=2)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🧠 CONFLUENCE SCORING
+// ═══════════════════════════════════════════════════════════════════════
+
+// RSI divergence score
+float rsiScore = 0.0
+
+if recentBullDiv
+    rsiScore := 65.0
+else if recentBearDiv
+    rsiScore := -65.0
+else if hiddenBullDiv  // Hidden divs = trend continuation
+    rsiScore := 40.0
+else if hiddenBearDiv
+    rsiScore := -40.0
+
+// Additional weight from RSI level
+if rsi < 30  // Oversold
+    rsiScore += 20.0
+else if rsi > 70  // Overbought
+    rsiScore -= 20.0
+
+float rsiConfluence = impactConfluence ? rsiScore : 0
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 DASHBOARD OUTPUT
+// ═══════════════════════════════════════════════════════════════════════
+
+// Row 15: RSI Divergence status
+string rsiStatus = recentBullDiv ? "🟢 BULL DIV" :
+                   recentBearDiv ? "🔴 BEAR DIV" :
+                   rsi < 30 ? "🟢 OVERSOLD" :
+                   rsi > 70 ? "🔴 OVERBOUGHT" :
+                   "⚪ NORMAL"
+
+string rsiValue = str.tostring(rsi, "#.#")
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔔 ALERTS
+// ═══════════════════════════════════════════════════════════════════════
+
+alertcondition(bullishDiv, "Bullish Divergence", "🟢 Bullish RSI Divergence detected")
+alertcondition(bearishDiv, "Bearish Divergence", "🔴 Bearish RSI Divergence detected")
+alertcondition(hiddenBullDiv, "Hidden Bull Div", "Hidden Bullish Divergence (trend continuation)")
+alertcondition(hiddenBearDiv, "Hidden Bear Div", "Hidden Bearish Divergence (trend continuation)")
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔄 EXPORTS
+// ═══════════════════════════════════════════════════════════════════════
+
+// Variables to export:
+// - bullishDiv, bearishDiv (bool)
+// - hiddenBullDiv, hiddenBearDiv (bool)
+// - rsiConfluence (float)
+// - rsi, rsiMTF (float)
+// - recentBullDiv, recentBearDiv (bool)

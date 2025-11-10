@@ -1,0 +1,184 @@
+//@version=6
+// 📏 ADR % / ATR % Module
+// Average Daily Range and Average True Range as percentages
+
+// ═══════════════════════════════════════════════════════════════════════
+// ⚙️ INPUTS & TOGGLES
+// ═══════════════════════════════════════════════════════════════════════
+
+bool showVolatility = input.bool(true, "👁️ Show Volatility Metrics", group="📏 ADR/ATR")
+bool impactConfluence = input.bool(true, "⚡ Impact Confluence", group="📏 ADR/ATR")
+
+int adrPeriod = input.int(14, "ADR Period", minval=1, group="📏 ADR/ATR")
+int atrPeriod = input.int(14, "ATR Period", minval=1, group="📏 ADR/ATR")
+
+float highVolThreshold = input.float(1.5, "High Volatility Threshold", minval=1.0, step=0.1, group="📏 ADR/ATR")
+float lowVolThreshold = input.float(0.7, "Low Volatility Threshold", minval=0.1, step=0.1, group="📏 ADR/ATR")
+
+// Colors
+color COLOR_GREEN = #089981
+color COLOR_RED = #F23645
+color COLOR_GOLD = #D4AF37
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 ATR CALCULATION
+// ═══════════════════════════════════════════════════════════════════════
+
+float atrValue = ta.atr(atrPeriod)
+float atrPercent = (atrValue / close) * 100
+
+// ATR vs its moving average (volatility regime)
+float atrMA = ta.sma(atrValue, atrPeriod)
+float atrRatio = atrValue / atrMA
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 ADR CALCULATION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Get daily high and low
+float dailyHigh = request.security(syminfo.tickerid, "D", high, barmerge.gaps_off, barmerge.lookahead_on)
+float dailyLow = request.security(syminfo.tickerid, "D", low, barmerge.gaps_off, barmerge.lookahead_on)
+float dailyRange = dailyHigh - dailyLow
+
+// Average Daily Range over period
+float adrValue = ta.sma(dailyRange, adrPeriod)
+float adrPercent = (adrValue / close) * 100
+
+// Current day's range as % of ADR
+float todayRange = high - low
+float rangePercent = (todayRange / adrValue) * 100
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 VOLATILITY CLASSIFICATION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Volatility state based on ATR ratio
+string volState = atrRatio >= highVolThreshold ? "HIGH" :
+                  atrRatio <= lowVolThreshold ? "LOW" :
+                  "NORMAL"
+
+// Color based on volatility
+color volColor = volState == "HIGH" ? COLOR_RED :
+                 volState == "LOW" ? COLOR_GREEN :
+                 COLOR_GOLD
+
+// Range utilization (how much of ADR used today)
+bool rangeExpanded = rangePercent > 80  // Used >80% of ADR
+bool rangeCompressed = rangePercent < 30  // Used <30% of ADR
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 TRADING IMPLICATIONS
+// ═══════════════════════════════════════════════════════════════════════
+
+// High volatility = wider stops, more caution
+// Low volatility = tighter stops, compression before expansion
+// Range expanded = potential reversal zone
+// Range compressed = potential breakout zone
+
+// Risk multiplier based on volatility
+float riskMultiplier = volState == "HIGH" ? 1.5 :
+                       volState == "LOW" ? 0.75 :
+                       1.0
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🎨 VISUALIZATION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Plot ATR
+plot(showVolatility ? atrValue : na, "ATR Value", 
+     COLOR_GOLD, linewidth=2, style=plot.style_line)
+
+plot(showVolatility ? atrMA : na, "ATR MA", 
+     color.new(color.gray, 40), linewidth=1, style=plot.style_line)
+
+// Volatility bands (ATR ± 1 std dev)
+float atrStd = ta.stdev(atrValue, atrPeriod)
+float upperBand = atrMA + atrStd
+float lowerBand = atrMA - atrStd
+
+plot(showVolatility ? upperBand : na, "Upper Band", 
+     color.new(COLOR_RED, 70), linewidth=1, style=plot.style_dashed)
+plot(showVolatility ? lowerBand : na, "Lower Band", 
+     color.new(COLOR_GREEN, 70), linewidth=1, style=plot.style_dashed)
+
+// Background color based on volatility state
+bgcolor(showVolatility and volState == "HIGH" ? color.new(COLOR_RED, 97) :
+        showVolatility and volState == "LOW" ? color.new(COLOR_GREEN, 97) :
+        na, title="Volatility State")
+
+// Labels for key levels
+if showVolatility and barstate.islast
+    // ADR label
+    label.new(bar_index, high, 
+         "ADR: " + str.tostring(adrPercent, "#.##") + "%\n" +
+         "Today: " + str.tostring(rangePercent, "#") + "%",
+         style=label.style_label_down,
+         color=color.new(COLOR_GOLD, 30),
+         textcolor=color.white,
+         size=size.small)
+    
+    // ATR label
+    label.new(bar_index, low, 
+         "ATR: " + str.tostring(atrPercent, "#.##") + "%\n" +
+         "State: " + volState,
+         style=label.style_label_up,
+         color=color.new(volColor, 30),
+         textcolor=color.white,
+         size=size.small)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🧠 CONFLUENCE SCORING
+// ═══════════════════════════════════════════════════════════════════════
+
+// Volatility doesn't have directional bias, but affects other modules
+// High vol = reduce confluence scores (less reliable)
+// Low vol = potential breakout setup
+
+float volScore = 0.0
+
+if rangeCompressed and volState == "LOW"
+    // Compression = potential breakout (slight bullish bias if trend is up)
+    volScore := 25.0
+else if rangeExpanded
+    // Expanded range = potential exhaustion (reversal setup)
+    volScore := -15.0
+
+// Note: This score modulates other module scores rather than direct contribution
+float volConfluence = impactConfluence ? volScore : 0
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 DASHBOARD OUTPUT
+// ═══════════════════════════════════════════════════════════════════════
+
+// Row 14: ADR/ATR status
+string volDisplay = "ATR: " + str.tostring(atrPercent, "#.##") + "%"
+string volStateDisplay = volState + " VOL"
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔔 ALERTS
+// ═══════════════════════════════════════════════════════════════════════
+
+// Volatility regime changes
+bool volIncreasing = volState == "HIGH" and volState[1] != "HIGH"
+bool volDecreasing = volState == "LOW" and volState[1] != "LOW"
+
+alertcondition(volIncreasing, "High Volatility", "⚠️ Volatility increased to HIGH")
+alertcondition(volDecreasing, "Low Volatility", "📉 Volatility decreased to LOW")
+
+// Range alerts
+alertcondition(rangeExpanded and not rangeExpanded[1], "Range Expanded", 
+     "📊 Day range >80% of ADR - Potential reversal zone")
+alertcondition(rangeCompressed and volState == "LOW", "Compression", 
+     "🌀 Range compressed + Low volatility - Breakout setup")
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔄 EXPORTS
+// ═══════════════════════════════════════════════════════════════════════
+
+// Variables to export:
+// - atrValue, atrPercent (float) - For SL/TP calculations
+// - adrValue, adrPercent (float) - For position sizing
+// - volState (string) - HIGH/NORMAL/LOW
+// - riskMultiplier (float) - Adjust risk based on volatility
+// - rangeExpanded, rangeCompressed (bool)
+// - volConfluence (float)
