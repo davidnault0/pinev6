@@ -1,6 +1,6 @@
 //@version=6
 indicator("🎯 Pine v6 Trading System - Complete", 
-     shorttitle="PineV6 System",
+     shorttitle="PineV6",
      overlay=true, 
      max_labels_count=500,
      max_lines_count=500,
@@ -221,8 +221,7 @@ plotshape(newSell, "SELL", shape.labeldown, location.abovebar, COLOR_RED,
      text="SELL", textcolor=color.white, size=size.normal)
 
 // Background
-bgcolor(signal == "BUY" ? color.new(COLOR_GREEN, 97) : 
-        signal == "SELL" ? color.new(COLOR_RED, 97) : na)
+bgcolor(signal == "BUY" ? color.new(COLOR_GREEN, 97) : signal == "SELL" ? color.new(COLOR_RED, 97) : na)
 
 // ═══════════════════════════════════════════════════════════════════════
 // 💰 RISK MANAGEMENT
