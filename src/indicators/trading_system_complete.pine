@@ -29,9 +29,9 @@ string strategyMode = input.string("Intraday", "⏰ Strategy Mode",
 
 // Adaptive parameters based on mode
 int emaLen = strategyMode == "Scalp" ? 9 : strategyMode == "Intraday" ? 9 : 20
-int ema50Len = strategyMode == "Scalp" ? 50 : 50 : 50
-int ema100Len = strategyMode == "Scalp" ? 100 : 100 : 100
-int ema200Len = strategyMode == "Scalp" ? 200 : 200 : 200
+int ema50Len = strategyMode == "Scalp" ? 50 : strategyMode == "Intraday" ? 50 : 50
+int ema100Len = strategyMode == "Scalp" ? 100 : strategyMode == "Intraday" ? 100 : 100
+int ema200Len = strategyMode == "Scalp" ? 200 : strategyMode == "Intraday" ? 200 : 200
 
 // ═══════════════════════════════════════════════════════════════════════
 // 📊 MODULE TOGGLES
