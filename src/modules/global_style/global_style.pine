@@ -1,0 +1,137 @@
+//@version=6
+// 🎨 Global Style Module
+// Manages palette, thickness, rounding, transparency for entire system
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🎨 COLOR PALETTE
+// ═══════════════════════════════════════════════════════════════════════
+
+// Core brand colors
+COLOR_GOLD = #D4AF37
+COLOR_BLACK = #141414
+COLOR_GREEN = #089981
+COLOR_RED = #F23645
+
+// Transparency variants
+COLOR_GOLD_10 = color.new(COLOR_GOLD, 90)
+COLOR_GOLD_20 = color.new(COLOR_GOLD, 80)
+COLOR_GOLD_30 = color.new(COLOR_GOLD, 70)
+COLOR_GOLD_50 = color.new(COLOR_GOLD, 50)
+COLOR_GOLD_70 = color.new(COLOR_GOLD, 30)
+
+COLOR_BLACK_10 = color.new(COLOR_BLACK, 90)
+COLOR_BLACK_20 = color.new(COLOR_BLACK, 80)
+COLOR_BLACK_50 = color.new(COLOR_BLACK, 50)
+COLOR_BLACK_70 = color.new(COLOR_BLACK, 30)
+
+COLOR_GREEN_10 = color.new(COLOR_GREEN, 90)
+COLOR_GREEN_20 = color.new(COLOR_GREEN, 80)
+COLOR_GREEN_30 = color.new(COLOR_GREEN, 70)
+COLOR_GREEN_50 = color.new(COLOR_GREEN, 50)
+COLOR_GREEN_70 = color.new(COLOR_GREEN, 30)
+
+COLOR_RED_10 = color.new(COLOR_RED, 90)
+COLOR_RED_20 = color.new(COLOR_RED, 80)
+COLOR_RED_30 = color.new(COLOR_RED, 70)
+COLOR_RED_50 = color.new(COLOR_RED, 50)
+COLOR_RED_70 = color.new(COLOR_RED, 30)
+
+// Neutral colors
+COLOR_NEUTRAL = color.gray
+COLOR_NEUTRAL_LIGHT = color.silver
+COLOR_NEUTRAL_DARK = #2B2B2B
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📐 STYLE SETTINGS
+// ═══════════════════════════════════════════════════════════════════════
+
+// Line widths
+LINE_WIDTH_THIN = 1
+LINE_WIDTH_NORMAL = 2
+LINE_WIDTH_THICK = 3
+LINE_WIDTH_EXTRA_THICK = 4
+
+// Line styles
+STYLE_SOLID = line.style_solid
+STYLE_DASHED = line.style_dashed
+STYLE_DOTTED = line.style_dotted
+
+// Label sizes
+SIZE_TINY = size.tiny
+SIZE_SMALL = size.small
+SIZE_NORMAL = size.normal
+SIZE_LARGE = size.large
+SIZE_HUGE = size.huge
+
+// Dashboard position
+DASH_POSITION = position.bottom_left
+
+// Border radius for boxes
+BORDER_RADIUS = 3
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔧 HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════
+
+// @function Get trend color (bull/bear/neutral)
+// @param trend_state 1=Bull, -1=Bear, 0=Neutral
+// @param transparency Optional transparency level (0-100)
+// @returns color
+getTrendColor(int trend_state, int transparency = 0) =>
+    color col = trend_state > 0 ? COLOR_GREEN : 
+                trend_state < 0 ? COLOR_RED : 
+                COLOR_NEUTRAL
+    transparency > 0 ? color.new(col, transparency) : col
+
+// @function Get signal color (buy/sell/wait)
+// @param signal "BUY", "SELL", or "WAIT"
+// @param transparency Optional transparency level (0-100)
+// @returns color
+getSignalColor(string signal, int transparency = 0) =>
+    color col = signal == "BUY" ? COLOR_GREEN : 
+                signal == "SELL" ? COLOR_RED : 
+                COLOR_GOLD
+    transparency > 0 ? color.new(col, transparency) : col
+
+// @function Get background color with transparency
+// @param is_bullish true for bull, false for bear
+// @param transparency Transparency level (0-100)
+// @returns color
+getBgColor(bool is_bullish, int transparency = 90) =>
+    color col = is_bullish ? COLOR_GREEN : COLOR_RED
+    color.new(col, transparency)
+
+// @function Format percentage with color
+// @param value Percentage value
+// @returns [text, color]
+formatPercent(float value) =>
+    string txt = str.tostring(value, "#.##") + "%"
+    color col = value > 0 ? COLOR_GREEN : value < 0 ? COLOR_RED : COLOR_NEUTRAL
+    [txt, col]
+
+// @function Get line style based on importance
+// @param importance 1=low, 2=medium, 3=high
+// @returns line_style
+getLineStyle(int importance) =>
+    importance >= 3 ? STYLE_SOLID :
+    importance == 2 ? STYLE_DASHED :
+    STYLE_DOTTED
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 DASHBOARD STYLES
+// ═══════════════════════════════════════════════════════════════════════
+
+// Dashboard transparency settings
+input.int(80, "Dashboard BG Transparency", minval=0, maxval=100, group="🎨 Dashboard Style")
+input.int(0, "Dashboard Border Transparency", minval=0, maxval=100, group="🎨 Dashboard Style")
+input.int(2, "Dashboard Border Width", minval=1, maxval=5, group="🎨 Dashboard Style")
+
+// Text sizes
+input.string("Small", "Dashboard Text Size", options=["Tiny", "Small", "Normal", "Large"], group="🎨 Dashboard Style")
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔄 EXPORTS (for use in main indicator)
+// ═══════════════════════════════════════════════════════════════════════
+
+// Note: Pine Script v6 doesn't have true module exports
+// These constants and functions should be copied into the main indicator file

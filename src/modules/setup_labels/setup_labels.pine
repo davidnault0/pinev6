@@ -1,0 +1,234 @@
+//@version=6
+// 📈 Setup Labels (emoji, SL/TP/RR/LOT) Module
+// Visual trade setup display with all key information
+
+// ═══════════════════════════════════════════════════════════════════════
+// ⚙️ INPUTS
+// ═══════════════════════════════════════════════════════════════════════
+
+bool showSetupLabels = input.bool(true, "👁️ Show Setup Labels", group="📈 Setup Labels")
+string labelPosition = input.string("Above", "Label Position", 
+     options=["Above", "Below", "Auto"], group="📈 Setup Labels")
+
+bool showSL = input.bool(true, "Show SL", group="📈 Setup Labels")
+bool showTP = input.bool(true, "Show TP Levels", group="📈 Setup Labels")
+bool showRR = input.bool(true, "Show RR Ratio", group="📈 Setup Labels")
+bool showLot = input.bool(true, "Show Lot Size", group="📈 Setup Labels")
+
+// Colors
+color COLOR_GREEN = #089981
+color COLOR_RED = #F23645
+color COLOR_GOLD = #D4AF37
+color COLOR_BLACK = #141414
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 INPUTS FROM OTHER MODULES
+// ═══════════════════════════════════════════════════════════════════════
+
+// From Confluence Engine
+string signal = "WAIT"  // "BUY" / "SELL" / "WAIT"
+float confluenceScore = 0  // 0-100
+
+// From Risk Management
+float lotSize = 0.1
+float stopLoss = na
+float takeProfit1 = na
+float takeProfit2 = na
+float takeProfit3 = na
+float rrRatio = 2.5
+
+// Signal trigger
+bool newBuy = signal == "BUY" and signal[1] != "BUY"
+bool newSell = signal == "SELL" and signal[1] != "SELL"
+bool newSignal = newBuy or newSell
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🎨 EMOJI SELECTION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Select emoji based on signal and confluence strength
+string getSignalEmoji(string sig, float score) =>
+    if sig == "BUY"
+        score >= 90 ? "🚀" :
+        score >= 80 ? "💪" :
+        score >= 70 ? "📈" :
+        "🟢"
+    else if sig == "SELL"
+        score >= 90 ? "💥" :
+        score >= 80 ? "⚡" :
+        score >= 70 ? "📉" :
+        "🔴"
+    else
+        "⏸️"
+
+string signalEmoji = getSignalEmoji(signal, confluenceScore)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 LABEL TEXT CONSTRUCTION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Build label text with all information
+string buildLabelText(string sig, float conf, float lot, float sl, float tp1, float tp2, float tp3, float rr) =>
+    string text = signalEmoji + " " + sig + " " + str.tostring(conf, "#") + "%\n"
+    
+    if showLot
+        text += "💰 LOT: " + str.tostring(lot, "#.##") + "\n"
+    
+    if showSL and not na(sl)
+        text += "🛑 SL: " + str.tostring(sl, "#.####") + "\n"
+    
+    if showTP and not na(tp1)
+        text += "🎯 TP1: " + str.tostring(tp1, "#.####") + "\n"
+        
+    if showTP and not na(tp2)
+        text += "🎯 TP2: " + str.tostring(tp2, "#.####") + "\n"
+        
+    if showTP and not na(tp3)
+        text += "🎯 TP3: " + str.tostring(tp3, "#.####") + "\n"
+    
+    if showRR
+        text += "📊 RR: 1:" + str.tostring(rr, "#.#")
+    
+    text
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🎨 LABEL VISUALIZATION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Determine label style and position
+string getLabelStyle(string sig, string pos) =>
+    if pos == "Above"
+        sig == "BUY" ? label.style_label_down : label.style_label_up
+    else if pos == "Below"
+        sig == "BUY" ? label.style_label_up : label.style_label_down
+    else  // Auto
+        sig == "BUY" ? label.style_label_up : label.style_label_down
+
+// Get label color
+color getLabelColor(string sig, float conf) =>
+    color baseColor = sig == "BUY" ? COLOR_GREEN : COLOR_RED
+    
+    // Adjust transparency based on confidence
+    int transp = conf >= 80 ? 0 :
+                 conf >= 70 ? 10 :
+                 conf >= 60 ? 20 :
+                 30
+    
+    color.new(baseColor, transp)
+
+// Draw label on new signal
+if showSetupLabels and newSignal
+    string labelText = buildLabelText(
+         signal, 
+         confluenceScore, 
+         lotSize, 
+         stopLoss, 
+         takeProfit1, 
+         takeProfit2, 
+         takeProfit3, 
+         rrRatio)
+    
+    string style = getLabelStyle(signal, labelPosition)
+    color labelColor = getLabelColor(signal, confluenceScore)
+    float labelY = signal == "BUY" ? low : high
+    
+    label setupLabel = label.new(
+         bar_index, 
+         labelY, 
+         labelText,
+         style=style,
+         color=labelColor,
+         textcolor=color.white,
+         size=size.normal,
+         textalign=text.align_left)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🎨 LIVE SETUP DISPLAY (Current Bar)
+// ═══════════════════════════════════════════════════════════════════════
+
+// Display current setup status on active trades
+var label liveLabel = na
+
+if showSetupLabels and signal != "WAIT" and barstate.islast
+    label.delete(liveLabel)
+    
+    string liveText = buildLabelText(
+         signal, 
+         confluenceScore, 
+         lotSize, 
+         stopLoss, 
+         takeProfit1, 
+         takeProfit2, 
+         takeProfit3, 
+         rrRatio)
+    
+    string style = getLabelStyle(signal, "Above")
+    color labelColor = getLabelColor(signal, confluenceScore)
+    float labelY = signal == "BUY" ? low : high
+    
+    liveLabel := label.new(
+         bar_index, 
+         labelY, 
+         liveText,
+         style=style,
+         color=color.new(labelColor, 20),
+         textcolor=color.white,
+         size=size.small,
+         textalign=text.align_left)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 TABLE SUMMARY (Alternative Display)
+// ═══════════════════════════════════════════════════════════════════════
+
+bool showTableSummary = input.bool(false, "Show Table Summary", group="📈 Setup Labels")
+
+var table setupTable = table.new(position.top_right, 2, 8,
+     bgcolor=color.new(COLOR_BLACK, 80),
+     border_color=color.new(COLOR_GOLD, 0),
+     border_width=2)
+
+if showTableSummary and signal != "WAIT" and barstate.islast
+    color sigColor = signal == "BUY" ? COLOR_GREEN : COLOR_RED
+    
+    // Header
+    table.cell(setupTable, 0, 0, "🎯 SETUP", 
+         text_color=COLOR_GOLD, text_size=size.normal, bgcolor=color.new(COLOR_BLACK, 70))
+    table.cell(setupTable, 1, 0, signal, 
+         text_color=sigColor, text_size=size.normal, bgcolor=color.new(sigColor, 90))
+    
+    // Details
+    table.cell(setupTable, 0, 1, "Confluence", text_color=color.white, text_size=size.small)
+    table.cell(setupTable, 1, 1, str.tostring(confluenceScore, "#") + "%", 
+         text_color=sigColor, text_size=size.small)
+    
+    table.cell(setupTable, 0, 2, "Lot Size", text_color=color.white, text_size=size.small)
+    table.cell(setupTable, 1, 2, str.tostring(lotSize, "#.##"), 
+         text_color=COLOR_GOLD, text_size=size.small)
+    
+    table.cell(setupTable, 0, 3, "Stop Loss", text_color=color.white, text_size=size.small)
+    table.cell(setupTable, 1, 3, str.tostring(stopLoss, "#.####"), 
+         text_color=COLOR_RED, text_size=size.small)
+    
+    table.cell(setupTable, 0, 4, "TP1", text_color=color.white, text_size=size.small)
+    table.cell(setupTable, 1, 4, str.tostring(takeProfit1, "#.####"), 
+         text_color=COLOR_GREEN, text_size=size.small)
+    
+    table.cell(setupTable, 0, 5, "TP2", text_color=color.white, text_size=size.small)
+    table.cell(setupTable, 1, 5, str.tostring(takeProfit2, "#.####"), 
+         text_color=COLOR_GREEN, text_size=size.small)
+    
+    table.cell(setupTable, 0, 6, "TP3", text_color=color.white, text_size=size.small)
+    table.cell(setupTable, 1, 6, str.tostring(takeProfit3, "#.####"), 
+         text_color=COLOR_GREEN, text_size=size.small)
+    
+    table.cell(setupTable, 0, 7, "Risk/Reward", text_color=color.white, text_size=size.small)
+    table.cell(setupTable, 1, 7, "1:" + str.tostring(rrRatio, "#.#"), 
+         text_color=COLOR_GOLD, text_size=size.small)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔄 EXPORTS
+// ═══════════════════════════════════════════════════════════════════════
+
+// This module is primarily visual output
+// It consumes data from Confluence Engine and Risk Management
+// No exports needed as it's the final display layer

@@ -1,0 +1,171 @@
+//@version=6
+// 🧠 Confluence Engine Module
+// Strict scoring system integrating all module signals
+
+// ═══════════════════════════════════════════════════════════════════════
+// ⚙️ CONFIGURATION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Confluence thresholds
+int buyThreshold = input.int(70, "BUY Threshold", minval=0, maxval=100, group="🧠 Confluence")
+int sellThreshold = input.int(70, "SELL Threshold", minval=0, maxval=100, group="🧠 Confluence")
+bool strictMode = input.bool(true, "Strict Mode", 
+     tooltip="Requires higher agreement between modules", group="🧠 Confluence")
+
+// Module weights (total = 100%)
+float weightSupertrend = input.float(12, "📈 Supertrend Weight", minval=0, maxval=100, group="🧠 Weights") / 100
+float weightStructure = input.float(15, "🔹 Structure Weight", minval=0, maxval=100, group="🧠 Weights") / 100
+float weightEMA = input.float(10, "📐 EMA Weight", minval=0, maxval=100, group="🧠 Weights") / 100
+float weightVWAP = input.float(8, "📍 VWAP Weight", minval=0, maxval=100, group="🧠 Weights") / 100
+float weightVolume = input.float(8, "📊 Volume Weight", minval=0, maxval=100, group="🧠 Weights") / 100
+float weightOB = input.float(12, "🧱 Order Blocks Weight", minval=0, maxval=100, group="🧠 Weights") / 100
+float weightLiquidity = input.float(15, "💧 Liquidity Weight", minval=0, maxval=100, group="🧠 Weights") / 100
+float weightRSI = input.float(8, "💠 RSI Div Weight", minval=0, maxval=100, group="🧠 Weights") / 100
+float weightFVG = input.float(7, "📉 FVG Weight", minval=0, maxval=100, group="🧠 Weights") / 100
+float weightOther = input.float(5, "🔹 Other Weight", minval=0, maxval=100, group="🧠 Weights") / 100
+
+// Colors
+color COLOR_GOLD = #D4AF37
+color COLOR_GREEN = #089981
+color COLOR_RED = #F23645
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 MODULE INPUTS (In real implementation, these come from modules)
+// ═══════════════════════════════════════════════════════════════════════
+
+// Example: Each module provides its score (-100 to +100)
+// Positive = Bullish, Negative = Bearish, 0 = Neutral
+
+// Mock data for demonstration - replace with actual module outputs
+float scoreSupertrend = 0  // From supertrend module
+float scoreStructure = 0   // From structure module
+float scoreEMA = 0         // From EMA module
+float scoreVWAP = 0        // From VWAP module
+float scoreVolume = 0      // From volume module
+float scoreOB = 0          // From order blocks module
+float scoreLiquidity = 0   // From liquidity module
+float scoreRSI = 0         // From RSI divergence module
+float scoreFVG = 0         // From FVG module
+float scoreOther = 0       // From other modules
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🧮 CONFLUENCE CALCULATION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Weighted sum of all module scores
+float confluenceRaw = 
+     scoreSupertrend * weightSupertrend +
+     scoreStructure * weightStructure +
+     scoreEMA * weightEMA +
+     scoreVWAP * weightVWAP +
+     scoreVolume * weightVolume +
+     scoreOB * weightOB +
+     scoreLiquidity * weightLiquidity +
+     scoreRSI * weightRSI +
+     scoreFVG * weightFVG +
+     scoreOther * weightOther
+
+// Normalize to 0-100 scale
+float confluenceScore = math.abs(confluenceRaw)
+int confluenceDirection = confluenceRaw > 0 ? 1 : confluenceRaw < 0 ? -1 : 0
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🎯 SIGNAL GENERATION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Count agreeing modules
+int bullModules = 0
+int bearModules = 0
+int neutralModules = 0
+
+if scoreSupertrend > 0
+    bullModules += 1
+else if scoreSupertrend < 0
+    bearModules += 1
+else
+    neutralModules += 1
+
+if scoreStructure > 0
+    bullModules += 1
+else if scoreStructure < 0
+    bearModules += 1
+else
+    neutralModules += 1
+
+if scoreEMA > 0
+    bullModules += 1
+else if scoreEMA < 0
+    bearModules += 1
+else
+    neutralModules += 1
+
+// ... (repeat for all modules)
+
+// Strict mode: require higher agreement
+int minAgreement = strictMode ? 7 : 5  // out of 10 modules
+bool hasStrongAgreement = bullModules >= minAgreement or bearModules >= minAgreement
+
+// Generate signal
+string signal = "WAIT"
+if confluenceScore >= buyThreshold and confluenceDirection == 1 and (not strictMode or hasStrongAgreement)
+    signal := "BUY"
+else if confluenceScore >= sellThreshold and confluenceDirection == -1 and (not strictMode or hasStrongAgreement)
+    signal := "SELL"
+
+// Signal change detection
+bool newBuySignal = signal == "BUY" and signal[1] != "BUY"
+bool newSellSignal = signal == "SELL" and signal[1] != "SELL"
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🎨 VISUALIZATION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Background color based on signal
+bgcolor(signal == "BUY" ? color.new(COLOR_GREEN, 95) : 
+        signal == "SELL" ? color.new(COLOR_RED, 95) : na,
+        title="Signal Background")
+
+// Signal markers
+plotshape(newBuySignal, "BUY Signal", 
+     shape.labelup, location.belowbar, COLOR_GREEN, 
+     text="BUY", textcolor=color.white, size=size.normal)
+
+plotshape(newSellSignal, "SELL Signal", 
+     shape.labeldown, location.abovebar, COLOR_RED, 
+     text="SELL", textcolor=color.white, size=size.normal)
+
+// Confluence strength indicator (line at bottom)
+hline(0, "Zero Line", color.gray, linestyle=hline.style_solid)
+plot(confluenceRaw, "Confluence Score", 
+     color=confluenceDirection == 1 ? COLOR_GREEN : 
+           confluenceDirection == -1 ? COLOR_RED : 
+           COLOR_GOLD,
+     linewidth=2)
+hline(buyThreshold, "Buy Threshold", color.new(COLOR_GREEN, 70), linestyle=hline.style_dashed)
+hline(-sellThreshold, "Sell Threshold", color.new(COLOR_RED, 70), linestyle=hline.style_dashed)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔔 ALERTS
+// ═══════════════════════════════════════════════════════════════════════
+
+alertcondition(newBuySignal, "Confluence BUY", "🟢 Confluence BUY signal - Score: {{plot_0}}")
+alertcondition(newSellSignal, "Confluence SELL", "🔴 Confluence SELL signal - Score: {{plot_0}}")
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 DASHBOARD OUTPUT
+// ═══════════════════════════════════════════════════════════════════════
+
+// Row 1: Confluence signal (main row)
+string confluenceDisplay = signal + " " + str.tostring(confluenceScore, "#") + "%"
+string moduleAgreement = "(" + str.tostring(bullModules) + "/" + str.tostring(bearModules) + "/" + str.tostring(neutralModules) + ")"
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔄 EXPORTS
+// ═══════════════════════════════════════════════════════════════════════
+
+// Variables to export:
+// - signal ("BUY"/"SELL"/"WAIT")
+// - confluenceScore (0-100)
+// - confluenceDirection (1/-1/0)
+// - newBuySignal, newSellSignal (bool)
+// - bullModules, bearModules (int, for display)

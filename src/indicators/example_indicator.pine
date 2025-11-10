@@ -1,0 +1,10 @@
+//@version=6
+indicator("Example Indicator – Pine v6", shorttitle="EX-IND", overlay=true, scale=scale.right, max_labels_count=200, max_lines_count=200)
+
+group_style = "🎨 Style Global"
+colGold = input.color(color.rgb(212,175,55), "Gold", group=group_style)
+
+len = input.int(50, "EMA Length")
+ema50 = ta.ema(close, len)
+
+plot(ema50, "EMA", color=colGold, linewidth=2)

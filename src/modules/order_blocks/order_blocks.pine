@@ -1,0 +1,235 @@
+//@version=6
+// 🧱 Order Blocks HTF Module
+// Higher Timeframe Order Block detection and tracking
+
+// ═══════════════════════════════════════════════════════════════════════
+// ⚙️ INPUTS & TOGGLES
+// ═══════════════════════════════════════════════════════════════════════
+
+bool showOB = input.bool(true, "👁️ Show Order Blocks", group="🧱 Order Blocks")
+bool impactConfluence = input.bool(true, "⚡ Impact Confluence", group="🧱 Order Blocks")
+
+string obTimeframe = input.timeframe("60", "HTF Timeframe", group="🧱 Order Blocks")
+int obLookback = input.int(20, "Lookback Period", minval=5, maxval=100, group="🧱 Order Blocks")
+int maxOB = input.int(5, "Max Order Blocks", minval=1, maxval=20, group="🧱 Order Blocks")
+bool showMitigated = input.bool(false, "Show Mitigated OBs", group="🧱 Order Blocks")
+
+// Colors
+color COLOR_GREEN = #089981
+color COLOR_RED = #F23645
+color COLOR_GREEN_OB = color.new(COLOR_GREEN, 80)
+color COLOR_RED_OB = color.new(COLOR_RED, 80)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 ORDER BLOCK DETECTION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Get HTF data
+[htfOpen, htfHigh, htfLow, htfClose] = request.security(
+     syminfo.tickerid, 
+     obTimeframe, 
+     [open, high, low, close], 
+     barmerge.gaps_off, 
+     barmerge.lookahead_off)
+
+// Bullish Order Block: Last down candle before strong up move
+bool isBullOB = htfClose[1] < htfOpen[1] and  // Previous candle bearish
+                htfClose > htfOpen and         // Current candle bullish
+                htfClose > htfHigh[1] and      // Break previous high
+                (htfClose - htfOpen) > (htfOpen[1] - htfClose[1]) * 1.5  // Strong bullish candle
+
+// Bearish Order Block: Last up candle before strong down move
+bool isBearOB = htfClose[1] > htfOpen[1] and  // Previous candle bullish
+                htfClose < htfOpen and         // Current candle bearish
+                htfClose < htfLow[1] and       // Break previous low
+                (htfOpen - htfClose) > (htfClose[1] - htfOpen[1]) * 1.5  // Strong bearish candle
+
+// Order Block zones (high/low of the base candle)
+float bullOBTop = isBullOB ? htfHigh[1] : na
+float bullOBBottom = isBullOB ? htfLow[1] : na
+int bullOBBar = isBullOB ? bar_index : na
+
+float bearOBTop = isBearOB ? htfHigh[1] : na
+float bearOBBottom = isBearOB ? htfLow[1] : na
+int bearOBBar = isBearOB ? bar_index : na
+
+// Store active Order Blocks
+var float[] bullOBTops = array.new_float(0)
+var float[] bullOBBottoms = array.new_float(0)
+var int[] bullOBBars = array.new_int(0)
+var bool[] bullOBMitigated = array.new_bool(0)
+
+var float[] bearOBTops = array.new_float(0)
+var float[] bearOBBottoms = array.new_float(0)
+var int[] bearOBBars = array.new_int(0)
+var bool[] bearOBMitigated = array.new_bool(0)
+
+// Add new bullish OB
+if isBullOB
+    array.unshift(bullOBTops, bullOBTop)
+    array.unshift(bullOBBottoms, bullOBBottom)
+    array.unshift(bullOBBars, bullOBBar)
+    array.unshift(bullOBMitigated, false)
+    
+    // Limit array size
+    if array.size(bullOBTops) > maxOB
+        array.pop(bullOBTops)
+        array.pop(bullOBBottoms)
+        array.pop(bullOBBars)
+        array.pop(bullOBMitigated)
+
+// Add new bearish OB
+if isBearOB
+    array.unshift(bearOBTops, bearOBTop)
+    array.unshift(bearOBBottoms, bearOBBottom)
+    array.unshift(bearOBBars, bearOBBar)
+    array.unshift(bearOBMitigated, false)
+    
+    // Limit array size
+    if array.size(bearOBTops) > maxOB
+        array.pop(bearOBTops)
+        array.pop(bearOBBottoms)
+        array.pop(bearOBBars)
+        array.pop(bearOBMitigated)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 MITIGATION TRACKING
+// ═══════════════════════════════════════════════════════════════════════
+
+// Check if OBs are mitigated (price returned into zone)
+for i = 0 to array.size(bullOBTops) - 1
+    if not array.get(bullOBMitigated, i)
+        float top = array.get(bullOBTops, i)
+        float bottom = array.get(bullOBBottoms, i)
+        
+        // Mitigated if price closes back in the zone
+        if low <= top and low >= bottom
+            array.set(bullOBMitigated, i, true)
+
+for i = 0 to array.size(bearOBTops) - 1
+    if not array.get(bearOBMitigated, i)
+        float top = array.get(bearOBTops, i)
+        float bottom = array.get(bearOBBottoms, i)
+        
+        // Mitigated if price closes back in the zone
+        if high >= bottom and high <= top
+            array.set(bearOBMitigated, i, true)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🎨 VISUALIZATION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Draw bullish OBs
+if showOB
+    for i = 0 to array.size(bullOBTops) - 1
+        bool mitigated = array.get(bullOBMitigated, i)
+        if showMitigated or not mitigated
+            float top = array.get(bullOBTops, i)
+            float bottom = array.get(bullOBBottoms, i)
+            int startBar = array.get(bullOBBars, i)
+            
+            color boxColor = mitigated ? color.new(COLOR_GREEN, 95) : COLOR_GREEN_OB
+            
+            box.new(startBar, top, bar_index + 50, bottom,
+                 border_color=color.new(COLOR_GREEN, 50),
+                 bgcolor=boxColor,
+                 border_width=1,
+                 extend=extend.right,
+                 text=obTimeframe + " OB",
+                 text_color=COLOR_GREEN,
+                 text_size=size.tiny)
+
+// Draw bearish OBs
+if showOB
+    for i = 0 to array.size(bearOBTops) - 1
+        bool mitigated = array.get(bearOBMitigated, i)
+        if showMitigated or not mitigated
+            float top = array.get(bearOBTops, i)
+            float bottom = array.get(bearOBBottoms, i)
+            int startBar = array.get(bearOBBars, i)
+            
+            color boxColor = mitigated ? color.new(COLOR_RED, 95) : COLOR_RED_OB
+            
+            box.new(startBar, top, bar_index + 50, bottom,
+                 border_color=color.new(COLOR_RED, 50),
+                 bgcolor=boxColor,
+                 border_width=1,
+                 extend=extend.right,
+                 text=obTimeframe + " OB",
+                 text_color=COLOR_RED,
+                 text_size=size.tiny)
+
+// Mark new OB detection
+plotshape(isBullOB, "Bull OB", shape.square, location.belowbar, 
+     color.new(COLOR_GREEN, 30), size=size.tiny)
+plotshape(isBearOB, "Bear OB", shape.square, location.abovebar, 
+     color.new(COLOR_RED, 30), size=size.tiny)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🧠 CONFLUENCE SCORING
+// ═══════════════════════════════════════════════════════════════════════
+
+// Check if price is near active OB
+bool nearBullOB = false
+bool nearBearOB = false
+
+for i = 0 to array.size(bullOBTops) - 1
+    if not array.get(bullOBMitigated, i)
+        float top = array.get(bullOBTops, i)
+        float bottom = array.get(bullOBBottoms, i)
+        float obRange = top - bottom
+        
+        // Within 20% of OB zone
+        if low <= (top + obRange * 0.2) and high >= (bottom - obRange * 0.2)
+            nearBullOB := true
+            break
+
+for i = 0 to array.size(bearOBTops) - 1
+    if not array.get(bearOBMitigated, i)
+        float top = array.get(bearOBTops, i)
+        float bottom = array.get(bearOBBottoms, i)
+        float obRange = top - bottom
+        
+        // Within 20% of OB zone
+        if high >= (bottom - obRange * 0.2) and low <= (top + obRange * 0.2)
+            nearBearOB := true
+            break
+
+// OB Confluence score
+float obScore = nearBullOB ? 70.0 : nearBearOB ? -70.0 : 0.0
+float obConfluence = impactConfluence ? obScore : 0
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 DASHBOARD OUTPUT
+// ═══════════════════════════════════════════════════════════════════════
+
+// Row 11: Order Blocks status
+int activeBullOB = 0
+int activeBearOB = 0
+
+for i = 0 to array.size(bullOBTops) - 1
+    if not array.get(bullOBMitigated, i)
+        activeBullOB += 1
+
+for i = 0 to array.size(bearOBTops) - 1
+    if not array.get(bearOBMitigated, i)
+        activeBearOB += 1
+
+string obStatus = str.tostring(activeBullOB) + "🟢 / " + str.tostring(activeBearOB) + "🔴"
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔔 ALERTS
+// ═══════════════════════════════════════════════════════════════════════
+
+alertcondition(isBullOB, "Bullish Order Block", "New Bullish Order Block detected on " + obTimeframe)
+alertcondition(isBearOB, "Bearish Order Block", "New Bearish Order Block detected on " + obTimeframe)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔄 EXPORTS
+// ═══════════════════════════════════════════════════════════════════════
+
+// Variables to export:
+// - nearBullOB, nearBearOB (bool)
+// - obConfluence (float)
+// - activeBullOB, activeBearOB (int)
+// - bullOBTops, bullOBBottoms arrays (for Fibo module)

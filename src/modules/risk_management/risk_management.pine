@@ -1,0 +1,186 @@
+//@version=6
+// 💰 Risk / Lot Management Module
+// Position sizing, SL/TP calculation, RR ratios
+
+// ═══════════════════════════════════════════════════════════════════════
+// ⚙️ INPUTS
+// ═══════════════════════════════════════════════════════════════════════
+
+float accountSize = input.float(10000, "Account Size", minval=100, group="💰 Risk Management")
+float riskPercent = input.float(1.0, "Risk % per Trade", minval=0.1, maxval=10, step=0.1, group="💰 Risk Management")
+bool useFixedLot = input.bool(false, "Use Fixed Lot Size", group="💰 Risk Management")
+float fixedLot = input.float(0.1, "Fixed Lot Size", minval=0.01, step=0.01, group="💰 Risk Management")
+
+// TP multipliers
+float tp1Multiplier = input.float(1.5, "TP1 RR Ratio", minval=0.5, step=0.1, group="💰 Take Profit")
+float tp2Multiplier = input.float(2.5, "TP2 RR Ratio", minval=0.5, step=0.1, group="💰 Take Profit")
+float tp3Multiplier = input.float(4.0, "TP3 RR Ratio", minval=0.5, step=0.1, group="💰 Take Profit")
+
+// SL mode
+string slMode = input.string("ATR", "SL Calculation", 
+     options=["ATR", "Structure", "Fixed %"], 
+     group="💰 Stop Loss")
+float slFixedPercent = input.float(1.0, "Fixed SL %", minval=0.1, step=0.1, group="💰 Stop Loss")
+float slATRMultiplier = input.float(2.0, "ATR Multiplier", minval=0.5, step=0.1, group="💰 Stop Loss")
+
+// Colors
+color COLOR_GREEN = #089981
+color COLOR_RED = #F23645
+color COLOR_GOLD = #D4AF37
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 ATR CALCULATION
+// ═══════════════════════════════════════════════════════════════════════
+
+int atrPeriod = 14  // From global_mode module
+float atrValue = ta.atr(atrPeriod)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 INPUTS FROM OTHER MODULES
+// ═══════════════════════════════════════════════════════════════════════
+
+// From Confluence Engine
+string signal = "WAIT"  // "BUY" / "SELL" / "WAIT"
+float confluenceScore = 0  // 0-100
+
+// From Structure module
+float lastHigh = na
+float lastLow = na
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🧮 STOP LOSS CALCULATION
+// ═══════════════════════════════════════════════════════════════════════
+
+float stopLoss = na
+
+if signal == "BUY"
+    if slMode == "ATR"
+        stopLoss := close - (atrValue * slATRMultiplier)
+    else if slMode == "Structure" and not na(lastLow)
+        stopLoss := lastLow - (atrValue * 0.5)  // Below structure low
+    else if slMode == "Fixed %"
+        stopLoss := close * (1 - slFixedPercent / 100)
+        
+else if signal == "SELL"
+    if slMode == "ATR"
+        stopLoss := close + (atrValue * slATRMultiplier)
+    else if slMode == "Structure" and not na(lastHigh)
+        stopLoss := lastHigh + (atrValue * 0.5)  // Above structure high
+    else if slMode == "Fixed %"
+        stopLoss := close * (1 + slFixedPercent / 100)
+
+// SL distance in points
+float slDistance = math.abs(close - stopLoss)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🧮 TAKE PROFIT CALCULATION
+// ═══════════════════════════════════════════════════════════════════════
+
+float takeProfit1 = na
+float takeProfit2 = na
+float takeProfit3 = na
+
+if signal == "BUY" and not na(stopLoss)
+    takeProfit1 := close + (slDistance * tp1Multiplier)
+    takeProfit2 := close + (slDistance * tp2Multiplier)
+    takeProfit3 := close + (slDistance * tp3Multiplier)
+    
+else if signal == "SELL" and not na(stopLoss)
+    takeProfit1 := close - (slDistance * tp1Multiplier)
+    takeProfit2 := close - (slDistance * tp2Multiplier)
+    takeProfit3 := close - (slDistance * tp3Multiplier)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🧮 POSITION SIZE CALCULATION
+// ═══════════════════════════════════════════════════════════════════════
+
+float lotSize = fixedLot
+
+if not useFixedLot and not na(stopLoss)
+    // Risk amount in account currency
+    float riskAmount = accountSize * (riskPercent / 100)
+    
+    // Calculate lot size based on risk and SL distance
+    // Formula: Lot = Risk Amount / (SL Distance in pips × Pip Value)
+    // Simplified for example (adjust based on instrument)
+    float pipValue = 10  // Standard lot pip value (adjust per instrument)
+    float slPips = slDistance / syminfo.mintick
+    
+    if slPips > 0
+        lotSize := riskAmount / (slPips * pipValue * syminfo.mintick)
+        lotSize := math.round(lotSize, 2)  // Round to 2 decimals
+
+// Adjust lot size based on confluence strength
+float confidenceAdjustment = confluenceScore / 100
+lotSize := lotSize * math.max(confidenceAdjustment, 0.5)  // Min 50% position
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🎨 VISUALIZATION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Plot Stop Loss
+plot(stopLoss, "Stop Loss", 
+     color=signal != "WAIT" ? COLOR_RED : na, 
+     style=plot.style_cross, 
+     linewidth=2)
+
+// Plot Take Profits
+plot(takeProfit1, "TP1", 
+     color=signal != "WAIT" ? color.new(COLOR_GREEN, 30) : na, 
+     style=plot.style_circles, 
+     linewidth=1)
+
+plot(takeProfit2, "TP2", 
+     color=signal != "WAIT" ? color.new(COLOR_GREEN, 50) : na, 
+     style=plot.style_circles, 
+     linewidth=1)
+
+plot(takeProfit3, "TP3", 
+     color=signal != "WAIT" ? color.new(COLOR_GREEN, 70) : na, 
+     style=plot.style_circles, 
+     linewidth=1)
+
+// Draw horizontal lines for active trade
+var line slLine = na
+var line tp1Line = na
+var line tp2Line = na
+var line tp3Line = na
+
+if signal != "WAIT" and not na(stopLoss)
+    // Stop Loss line
+    line.delete(slLine)
+    slLine := line.new(bar_index, stopLoss, bar_index + 50, stopLoss,
+         color=COLOR_RED, width=2, style=line.style_solid, extend=extend.right)
+    
+    // TP lines
+    line.delete(tp1Line)
+    tp1Line := line.new(bar_index, takeProfit1, bar_index + 50, takeProfit1,
+         color=color.new(COLOR_GREEN, 30), width=1, style=line.style_dashed, extend=extend.right)
+    
+    line.delete(tp2Line)
+    tp2Line := line.new(bar_index, takeProfit2, bar_index + 50, takeProfit2,
+         color=color.new(COLOR_GREEN, 50), width=1, style=line.style_dashed, extend=extend.right)
+    
+    line.delete(tp3Line)
+    tp3Line := line.new(bar_index, takeProfit3, bar_index + 50, takeProfit3,
+         color=color.new(COLOR_GREEN, 70), width=1, style=line.style_dashed, extend=extend.right)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 DASHBOARD OUTPUT
+// ═══════════════════════════════════════════════════════════════════════
+
+// Row 3: Risk status
+string riskDisplay = signal != "WAIT" ? 
+     str.tostring(lotSize, "#.##") + " lot | RR 1:" + str.tostring(tp2Multiplier, "#.#") :
+     "NO TRADE"
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔄 EXPORTS
+// ═══════════════════════════════════════════════════════════════════════
+
+// Variables to export:
+// - lotSize (float)
+// - stopLoss (float)
+// - takeProfit1, takeProfit2, takeProfit3 (float)
+// - slDistance (float)
+// - RR ratios (tp1/2/3Multiplier)

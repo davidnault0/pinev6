@@ -1,0 +1,237 @@
+//@version=6
+// 📉 FVG / iFVG ICT Module
+// Fair Value Gap and Inverse Fair Value Gap detection
+
+// ═══════════════════════════════════════════════════════════════════════
+// ⚙️ INPUTS & TOGGLES
+// ═══════════════════════════════════════════════════════════════════════
+
+bool showFVG = input.bool(true, "👁️ Show FVG", group="📉 FVG")
+bool impactConfluence = input.bool(true, "⚡ Impact Confluence", group="📉 FVG")
+
+int maxFVG = input.int(10, "Max FVG to Display", minval=1, maxval=50, group="📉 FVG")
+float minGapSize = input.float(0.0005, "Min Gap Size %", minval=0.0001, step=0.0001, group="📉 FVG")
+bool showMitigated = input.bool(false, "Show Mitigated FVG", group="📉 FVG")
+
+// Colors
+color COLOR_GREEN = #089981
+color COLOR_RED = #F23645
+color COLOR_GOLD = #D4AF37
+color COLOR_FVG_BULL = color.new(COLOR_GREEN, 85)
+color COLOR_FVG_BEAR = color.new(COLOR_RED, 85)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 FVG DETECTION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Bullish FVG: Gap between candle 2's high and current candle's low
+// (Price moves up so fast it leaves unfilled area)
+float bullGapTop = low
+float bullGapBottom = high[2]
+bool isBullFVG = bullGapTop > bullGapBottom and 
+                 (bullGapTop - bullGapBottom) / bullGapBottom >= minGapSize and
+                 close > open  // Current candle bullish
+
+// Bearish FVG: Gap between candle 2's low and current candle's high
+// (Price moves down so fast it leaves unfilled area)
+float bearGapTop = low[2]
+float bearGapBottom = high
+bool isBearFVG = bearGapBottom < bearGapTop and 
+                 (bearGapTop - bearGapBottom) / bearGapTop >= minGapSize and
+                 close < open  // Current candle bearish
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 FVG STORAGE & TRACKING
+// ═══════════════════════════════════════════════════════════════════════
+
+// Arrays to store FVGs
+var float[] bullFVGTops = array.new_float(0)
+var float[] bullFVGBottoms = array.new_float(0)
+var int[] bullFVGBars = array.new_int(0)
+var bool[] bullFVGMitigated = array.new_bool(0)
+
+var float[] bearFVGTops = array.new_float(0)
+var float[] bearFVGBottoms = array.new_float(0)
+var int[] bearFVGBars = array.new_int(0)
+var bool[] bearFVGMitigated = array.new_bool(0)
+
+// Add new bullish FVG
+if isBullFVG
+    array.unshift(bullFVGTops, bullGapTop)
+    array.unshift(bullFVGBottoms, bullGapBottom)
+    array.unshift(bullFVGBars, bar_index - 1)  // Middle candle bar
+    array.unshift(bullFVGMitigated, false)
+    
+    if array.size(bullFVGTops) > maxFVG
+        array.pop(bullFVGTops)
+        array.pop(bullFVGBottoms)
+        array.pop(bullFVGBars)
+        array.pop(bullFVGMitigated)
+
+// Add new bearish FVG
+if isBearFVG
+    array.unshift(bearFVGTops, bearGapTop)
+    array.unshift(bearFVGBottoms, bearGapBottom)
+    array.unshift(bearFVGBars, bar_index - 1)  // Middle candle bar
+    array.unshift(bearFVGMitigated, false)
+    
+    if array.size(bearFVGTops) > maxFVG
+        array.pop(bearFVGTops)
+        array.pop(bearFVGBottoms)
+        array.pop(bearFVGBars)
+        array.pop(bearFVGMitigated)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 MITIGATION & RETEST TRACKING
+// ═══════════════════════════════════════════════════════════════════════
+
+// Check mitigation (price fills the gap)
+for i = 0 to array.size(bullFVGTops) - 1
+    if not array.get(bullFVGMitigated, i)
+        float top = array.get(bullFVGTops, i)
+        float bottom = array.get(bullFVGBottoms, i)
+        float gapMid = (top + bottom) / 2
+        
+        // 50% mitigation
+        if low <= gapMid
+            array.set(bullFVGMitigated, i, true)
+
+for i = 0 to array.size(bearFVGTops) - 1
+    if not array.get(bearFVGMitigated, i)
+        float top = array.get(bearFVGTops, i)
+        float bottom = array.get(bearFVGBottoms, i)
+        float gapMid = (top + bottom) / 2
+        
+        // 50% mitigation
+        if high >= gapMid
+            array.set(bearFVGMitigated, i, true)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🎨 VISUALIZATION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Draw bullish FVGs
+if showFVG
+    for i = 0 to array.size(bullFVGTops) - 1
+        bool mitigated = array.get(bullFVGMitigated, i)
+        if showMitigated or not mitigated
+            float top = array.get(bullFVGTops, i)
+            float bottom = array.get(bullFVGBottoms, i)
+            int startBar = array.get(bullFVGBars, i)
+            
+            color boxColor = mitigated ? color.new(COLOR_GREEN, 95) : COLOR_FVG_BULL
+            string borderStyle = mitigated ? line.style_dotted : line.style_solid
+            
+            box fvgBox = box.new(startBar, top, bar_index + 20, bottom,
+                 border_color=color.new(COLOR_GREEN, 60),
+                 bgcolor=boxColor,
+                 border_width=1,
+                 border_style=borderStyle,
+                 extend=extend.right,
+                 text="FVG",
+                 text_color=COLOR_GREEN,
+                 text_size=size.tiny,
+                 text_halign=text.align_left)
+
+// Draw bearish FVGs
+if showFVG
+    for i = 0 to array.size(bearFVGTops) - 1
+        bool mitigated = array.get(bearFVGMitigated, i)
+        if showMitigated or not mitigated
+            float top = array.get(bearFVGTops, i)
+            float bottom = array.get(bearFVGBottoms, i)
+            int startBar = array.get(bearFVGBars, i)
+            
+            color boxColor = mitigated ? color.new(COLOR_RED, 95) : COLOR_FVG_BEAR
+            string borderStyle = mitigated ? line.style_dotted : line.style_solid
+            
+            box fvgBox = box.new(startBar, top, bar_index + 20, bottom,
+                 border_color=color.new(COLOR_RED, 60),
+                 bgcolor=boxColor,
+                 border_width=1,
+                 border_style=borderStyle,
+                 extend=extend.right,
+                 text="FVG",
+                 text_color=COLOR_RED,
+                 text_size=size.tiny,
+                 text_halign=text.align_left)
+
+// Mark new FVG detection
+plotshape(isBullFVG, "Bull FVG", shape.diamond, location.belowbar, 
+     color.new(COLOR_GREEN, 40), size=size.tiny)
+plotshape(isBearFVG, "Bear FVG", shape.diamond, location.abovebar, 
+     color.new(COLOR_RED, 40), size=size.tiny)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🧠 CONFLUENCE SCORING
+// ═══════════════════════════════════════════════════════════════════════
+
+// Check if price is near unmitigated FVG
+bool nearBullFVG = false
+bool nearBearFVG = false
+
+for i = 0 to array.size(bullFVGTops) - 1
+    if not array.get(bullFVGMitigated, i)
+        float top = array.get(bullFVGTops, i)
+        float bottom = array.get(bullFVGBottoms, i)
+        
+        // Price approaching FVG from above
+        if low <= top * 1.01 and high >= bottom
+            nearBullFVG := true
+            break
+
+for i = 0 to array.size(bearFVGTops) - 1
+    if not array.get(bearFVGMitigated, i)
+        float top = array.get(bearFVGTops, i)
+        float bottom = array.get(bearFVGBottoms, i)
+        
+        // Price approaching FVG from below
+        if high >= bottom * 0.99 and low <= top
+            nearBearFVG := true
+            break
+
+// FVG Confluence score (medium weight)
+float fvgScore = nearBullFVG ? 60.0 : nearBearFVG ? -60.0 : 0.0
+float fvgConfluence = impactConfluence ? fvgScore : 0
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 DASHBOARD OUTPUT
+// ═══════════════════════════════════════════════════════════════════════
+
+// Row 13: FVG status
+int activeBullFVG = 0
+int activeBearFVG = 0
+
+for i = 0 to array.size(bullFVGTops) - 1
+    if not array.get(bullFVGMitigated, i)
+        activeBullFVG += 1
+
+for i = 0 to array.size(bearFVGTops) - 1
+    if not array.get(bearFVGMitigated, i)
+        activeBearFVG += 1
+
+string fvgStatus = str.tostring(activeBullFVG) + "🟢 / " + str.tostring(activeBearFVG) + "🔴"
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔔 ALERTS
+// ═══════════════════════════════════════════════════════════════════════
+
+alertcondition(isBullFVG, "Bullish FVG", "New Bullish Fair Value Gap detected")
+alertcondition(isBearFVG, "Bearish FVG", "New Bearish Fair Value Gap detected")
+
+// Retest alerts
+bool bullFVGRetest = nearBullFVG and not nearBullFVG[1]
+bool bearFVGRetest = nearBearFVG and not nearBearFVG[1]
+
+alertcondition(bullFVGRetest, "Bull FVG Retest", "Price retesting Bullish FVG")
+alertcondition(bearFVGRetest, "Bear FVG Retest", "Price retesting Bearish FVG")
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔄 EXPORTS
+// ═══════════════════════════════════════════════════════════════════════
+
+// Variables to export:
+// - nearBullFVG, nearBearFVG (bool)
+// - fvgConfluence (float)
+// - activeBullFVG, activeBearFVG (int)
+// - FVG arrays for integration with other modules

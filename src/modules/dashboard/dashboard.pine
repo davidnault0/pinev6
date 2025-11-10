@@ -1,0 +1,165 @@
+//@version=6
+// 📊 Dashboard Module
+// Fixed table (bottom-left corner) displaying all module states
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 DASHBOARD CONFIGURATION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Dashboard visibility toggle
+bool showDashboard = input.bool(true, "Show Dashboard", group="📊 Dashboard")
+int dashTransparency = input.int(80, "Background Transparency", minval=0, maxval=100, group="📊 Dashboard")
+int dashBorderTransp = input.int(0, "Border Transparency", minval=0, maxval=100, group="📊 Dashboard")
+
+// Colors (from global style)
+color COLOR_GOLD = #D4AF37
+color COLOR_BLACK = #141414
+color COLOR_GREEN = #089981
+color COLOR_RED = #F23645
+color COLOR_BG = color.new(COLOR_BLACK, dashTransparency)
+color COLOR_BORDER = color.new(COLOR_GOLD, dashBorderTransp)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📋 DASHBOARD ROWS (15 + Header)
+// ═══════════════════════════════════════════════════════════════════════
+
+// Row 0: Confluence Score (Main signal)
+// Row 1: Mode (Pro/Aggressive + Scalp/Intraday/Swing)
+// Row 2: Risk Status (Lot size, SL, TP, RR)
+// Row 3: Structure (HH/HL/LL/LH state)
+// Row 4: Volume (Buy/Sell %)
+// Row 5: EMA Trend (50/100/200 alignment)
+// Row 6: EMA9 Momentum (Fast momentum)
+// Row 7: VWAP (Directional pressure)
+// Row 8: Supertrend (Bull/Bear state)
+// Row 9: Daily Open (Above/Below)
+// Row 10: Order Blocks (Active OB count)
+// Row 11: Liquidity (Sweep status)
+// Row 12: FVG (Active gaps)
+// Row 13: ADR/ATR (Volatility %)
+// Row 14: RSI Div (Divergence detected)
+// Row 15: Squeeze (Compression state)
+
+// Column structure:
+// Col 0: Module Name/Emoji
+// Col 1: Status/Value
+// Col 2: MTF Bias (8 timeframes vertical)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 DASHBOARD TABLE CREATION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Create table
+var table dashboard = table.new(
+     position.bottom_left, 
+     columns=3, 
+     rows=17,  // Header + 15 rows + 1 for spacing
+     bgcolor=COLOR_BG,
+     border_color=COLOR_BORDER,
+     border_width=2,
+     frame_color=COLOR_BORDER,
+     frame_width=2)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔧 DASHBOARD HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════
+
+// @function Update dashboard cell
+// @param row Row index
+// @param col Column index
+// @param text Display text
+// @param textColor Text color
+// @param bgColor Background color
+updateCell(int row, int col, string text, color textColor, color bgColor = na) =>
+    table.cell(
+         dashboard, col, row, text,
+         text_color=textColor,
+         bgcolor=bgColor == na ? COLOR_BG : bgColor,
+         text_size=size.small)
+
+// @function Get trend emoji
+// @param state 1=Bull, -1=Bear, 0=Neutral
+// @returns string
+getTrendEmoji(int state) =>
+    state > 0 ? "🟢" : state < 0 ? "🔴" : "⚪"
+
+// @function Get status color
+// @param isPositive Boolean for positive/negative state
+// @returns color
+getStatusColor(bool isPositive) =>
+    isPositive ? COLOR_GREEN : COLOR_RED
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 DASHBOARD INITIALIZATION (Run once)
+// ═══════════════════════════════════════════════════════════════════════
+
+if barstate.isfirst and showDashboard
+    
+    // Header Row (Row 0)
+    table.cell(dashboard, 0, 0, "📊 SYSTEM", 
+         text_color=COLOR_GOLD, bgcolor=color.new(COLOR_BLACK, 70), text_size=size.normal)
+    table.cell(dashboard, 1, 0, "STATUS", 
+         text_color=COLOR_GOLD, bgcolor=color.new(COLOR_BLACK, 70), text_size=size.normal)
+    table.cell(dashboard, 2, 0, "MTF BIAS", 
+         text_color=COLOR_GOLD, bgcolor=color.new(COLOR_BLACK, 70), text_size=size.normal)
+    
+    // Initialize row labels
+    table.cell(dashboard, 0, 1, "🧠 CONFLUENCE", text_color=COLOR_GOLD, text_size=size.small)
+    table.cell(dashboard, 0, 2, "🧭 MODE", text_color=COLOR_GOLD, text_size=size.small)
+    table.cell(dashboard, 0, 3, "💰 RISK", text_color=COLOR_GOLD, text_size=size.small)
+    table.cell(dashboard, 0, 4, "🔹 STRUCTURE", text_color=COLOR_GOLD, text_size=size.small)
+    table.cell(dashboard, 0, 5, "📊 VOLUME", text_color=COLOR_GOLD, text_size=size.small)
+    table.cell(dashboard, 0, 6, "📐 EMA TREND", text_color=COLOR_GOLD, text_size=size.small)
+    table.cell(dashboard, 0, 7, "⚡ EMA9 MOM", text_color=COLOR_GOLD, text_size=size.small)
+    table.cell(dashboard, 0, 8, "📍 VWAP", text_color=COLOR_GOLD, text_size=size.small)
+    table.cell(dashboard, 0, 9, "📈 SUPERTREND", text_color=COLOR_GOLD, text_size=size.small)
+    table.cell(dashboard, 0, 10, "🟦 DAILY OPEN", text_color=COLOR_GOLD, text_size=size.small)
+    table.cell(dashboard, 0, 11, "🧱 ORDER BLOCKS", text_color=COLOR_GOLD, text_size=size.small)
+    table.cell(dashboard, 0, 12, "💧 LIQUIDITY", text_color=COLOR_GOLD, text_size=size.small)
+    table.cell(dashboard, 0, 13, "📉 FVG", text_color=COLOR_GOLD, text_size=size.small)
+    table.cell(dashboard, 0, 14, "📏 ADR/ATR", text_color=COLOR_GOLD, text_size=size.small)
+    table.cell(dashboard, 0, 15, "💠 RSI DIV", text_color=COLOR_GOLD, text_size=size.small)
+    table.cell(dashboard, 0, 16, "🌀 SQUEEZE", text_color=COLOR_GOLD, text_size=size.small)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 DASHBOARD UPDATES (Every bar/tick)
+// ═══════════════════════════════════════════════════════════════════════
+
+if showDashboard
+    
+    // EXAMPLE: Update Confluence Score (Row 1)
+    // In real implementation, get these values from Confluence Engine
+    string confluenceSignal = "WAIT"  // "BUY" / "SELL" / "WAIT"
+    float confluenceScore = 45.0      // 0-100
+    color confluenceColor = confluenceSignal == "BUY" ? COLOR_GREEN : 
+                           confluenceSignal == "SELL" ? COLOR_RED : 
+                           COLOR_GOLD
+    
+    updateCell(1, 1, confluenceSignal + " " + str.tostring(confluenceScore, "#") + "%", 
+         confluenceColor, color.new(confluenceColor, 90))
+    
+    // EXAMPLE: Update Mode (Row 2)
+    string modeDisplay = "[Pro | Intraday]"  // From global_mode module
+    updateCell(2, 1, modeDisplay, COLOR_GOLD)
+    
+    // EXAMPLE: Update Risk (Row 3)
+    string riskDisplay = "0.5 lot | RR 1:3"  // From risk_management module
+    updateCell(3, 1, riskDisplay, color.white)
+    
+    // EXAMPLE: MTF Bias Column (Row 1, Col 2)
+    // Show 8 timeframes vertically with bull/bear/neutral indicators
+    string mtfDisplay = "🟢🟢🟢⚪🔴🔴🔴🔴"  // 8 TF bias
+    updateCell(1, 2, mtfDisplay, COLOR_GOLD)
+    
+    // Additional rows would be updated by their respective modules
+    // Each module updates its designated row(s) with current state
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔄 EXPORTS
+// ═══════════════════════════════════════════════════════════════════════
+
+// In main indicator:
+// 1. Create dashboard table at start
+// 2. Each module updates its designated row(s)
+// 3. MTF Bias updates column 2 for all relevant modules
+// 4. Confluence Engine updates row 1 with final signal

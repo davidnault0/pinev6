@@ -1,0 +1,182 @@
+//@version=6
+// 🌀 Squeeze Module
+// Volatility compression and expansion indicator (TTM Squeeze style)
+
+// ═══════════════════════════════════════════════════════════════════════
+// ⚙️ INPUTS & TOGGLES
+// ═══════════════════════════════════════════════════════════════════════
+
+bool showSqueeze = input.bool(true, "👁️ Show Squeeze", group="🌀 Squeeze")
+bool impactConfluence = input.bool(false, "⚡ Impact Confluence", 
+     tooltip="Low priority - mainly timing tool", group="🌀 Squeeze")
+
+int bbLength = input.int(20, "BB Length", minval=1, group="🌀 Squeeze")
+float bbMult = input.float(2.0, "BB Multiplier", minval=0.1, step=0.1, group="🌀 Squeeze")
+
+int kcLength = input.int(20, "KC Length", minval=1, group="🌀 Squeeze")
+float kcMult = input.float(1.5, "KC Multiplier", minval=0.1, step=0.1, group="🌀 Squeeze")
+
+// Colors
+color COLOR_GREEN = #089981
+color COLOR_RED = #F23645
+color COLOR_GOLD = #D4AF37
+color COLOR_BLACK = #141414
+color COLOR_GRAY = color.gray
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 BOLLINGER BANDS
+// ═══════════════════════════════════════════════════════════════════════
+
+float bbBasis = ta.sma(close, bbLength)
+float bbDev = bbMult * ta.stdev(close, bbLength)
+float bbUpper = bbBasis + bbDev
+float bbLower = bbBasis - bbDev
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 KELTNER CHANNELS
+// ═══════════════════════════════════════════════════════════════════════
+
+float kcBasis = ta.sma(close, kcLength)
+float kcRange = kcMult * ta.atr(kcLength)
+float kcUpper = kcBasis + kcRange
+float kcLower = kcBasis - kcRange
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 SQUEEZE DETECTION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Squeeze ON: BB inside KC (compression)
+bool squeezeOn = bbLower > kcLower and bbUpper < kcUpper
+
+// Squeeze OFF: BB outside KC (expansion)
+bool squeezeOff = bbLower <= kcLower or bbUpper >= kcUpper
+
+// Squeeze state change
+bool squeezeStarted = squeezeOn and not squeezeOn[1]
+bool squeezeFired = squeezeOff and squeezeOn[1]
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 MOMENTUM CALCULATION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Momentum histogram (similar to TTM Squeeze)
+float highest = ta.highest(high, kcLength)
+float lowest = ta.lowest(low, kcLength)
+float avg = (highest + lowest) / 2
+float momentum = ta.linreg(close - avg, kcLength, 0)
+
+// Momentum direction
+bool momentumBull = momentum > 0
+bool momentumBear = momentum < 0
+bool momentumIncreasing = momentum > momentum[1]
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🎨 VISUALIZATION
+// ═══════════════════════════════════════════════════════════════════════
+
+// Plot squeeze indicator dots
+color squeezeColor = squeezeOn ? COLOR_RED : COLOR_GREEN
+
+plotshape(showSqueeze, "Squeeze Indicator", 
+     shape.circle, 
+     location.bottom, 
+     squeezeColor, 
+     size=size.tiny,
+     offset=-1)
+
+// Momentum histogram
+color momentumColor = momentumBull and momentumIncreasing ? COLOR_GREEN :
+                      momentumBull and not momentumIncreasing ? color.new(COLOR_GREEN, 50) :
+                      momentumBear and not momentumIncreasing ? COLOR_RED :
+                      color.new(COLOR_RED, 50)
+
+plot(showSqueeze ? momentum : na, "Momentum", 
+     color=momentumColor, 
+     style=plot.style_histogram, 
+     linewidth=3)
+
+// Zero line
+hline(0, "Zero Line", color.new(COLOR_GRAY, 50), hline.style_solid)
+
+// Background color during squeeze
+bgcolor(showSqueeze and squeezeOn ? color.new(COLOR_GOLD, 95) : na, 
+     title="Squeeze Active")
+
+// Labels for squeeze events
+if showSqueeze and squeezeStarted
+    label.new(bar_index, high, "🌀 SQUEEZE ON",
+         style=label.style_label_down,
+         color=color.new(COLOR_RED, 30),
+         textcolor=color.white,
+         size=size.tiny)
+
+if showSqueeze and squeezeFired
+    label.new(bar_index, high, "💥 SQUEEZE FIRE",
+         style=label.style_label_down,
+         color=color.new(COLOR_GREEN, 30),
+         textcolor=color.white,
+         size=size.small)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 SQUEEZE DURATION TRACKING
+// ═══════════════════════════════════════════════════════════════════════
+
+// Count bars in squeeze
+var int squeezeBars = 0
+
+if squeezeOn
+    squeezeBars += 1
+else
+    squeezeBars := 0
+
+// Long squeeze = stronger breakout potential
+bool longSqueeze = squeezeBars > 6  // More than 6 bars in squeeze
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🧠 CONFLUENCE SCORING
+// ═══════════════════════════════════════════════════════════════════════
+
+// Squeeze is timing tool, not directional
+// Score based on squeeze fire with momentum
+float squeezeScore = 0.0
+
+if squeezeFired and longSqueeze
+    // Strong breakout setup
+    if momentumBull
+        squeezeScore := 30.0
+    else if momentumBear
+        squeezeScore := -30.0
+
+float squeezeConfluence = impactConfluence ? squeezeScore : 0
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 DASHBOARD OUTPUT
+// ═══════════════════════════════════════════════════════════════════════
+
+// Row 16: Squeeze status
+string squeezeStatus = squeezeOn ? "🔴 SQUEEZE ON (" + str.tostring(squeezeBars) + ")" :
+                       squeezeFired ? "💥 FIRED!" :
+                       "🟢 OFF"
+
+string momentumDisplay = momentumBull ? "↑" : "↓"
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔔 ALERTS
+// ═══════════════════════════════════════════════════════════════════════
+
+alertcondition(squeezeStarted, "Squeeze Started", "🌀 Squeeze compression started")
+alertcondition(squeezeFired, "Squeeze Fired", "💥 Squeeze fired - Breakout potential!")
+alertcondition(squeezeFired and longSqueeze, "Long Squeeze Fired", 
+     "💥 Long squeeze fired (" + str.tostring(squeezeBars) + " bars) - Strong breakout!")
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔄 EXPORTS
+// ═══════════════════════════════════════════════════════════════════════
+
+// Variables to export:
+// - squeezeOn, squeezeOff (bool)
+// - squeezeFired (bool) - Timing signal
+// - momentum (float) - Direction indicator
+// - momentumBull, momentumBear (bool)
+// - longSqueeze (bool) - Strong setup indicator
+// - squeezeConfluence (float)

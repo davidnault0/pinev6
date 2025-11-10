@@ -1,0 +1,22 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/* !.vscode/settings.json !.vscode/extensions.json
+.idea/
+
+# Node / Python / misc
+node_modules/
+venv/
+dist/
+build/
+
+# Archives
+*.zip
+
+# Temporary folders
+pine-codex-starter/
+
+# Logs
+*.log

@@ -1,0 +1,100 @@
+//@version=6
+// 📈 Supertrend Module
+// Bull/Bear cloud visualization with auto-optimization by mode
+
+// ═══════════════════════════════════════════════════════════════════════
+// ⚙️ INPUTS & TOGGLES
+// ═══════════════════════════════════════════════════════════════════════
+
+bool showSupertrend = input.bool(true, "👁️ Show Supertrend", group="📈 Supertrend")
+bool impactConfluence = input.bool(true, "⚡ Impact Confluence", 
+     tooltip="Include in confluence scoring", group="📈 Supertrend")
+
+// Mode-adaptive settings (from global_mode)
+int stPeriod = input.int(10, "Period", minval=1, group="📈 Supertrend")
+float stMultiplier = input.float(3.0, "ATR Multiplier", minval=0.1, step=0.1, group="📈 Supertrend")
+
+// Colors (from global_style)
+color COLOR_GREEN = #089981
+color COLOR_RED = #F23645
+color COLOR_GREEN_CLOUD = color.new(COLOR_GREEN, 85)
+color COLOR_RED_CLOUD = color.new(COLOR_RED, 85)
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 SUPERTREND CALCULATION
+// ═══════════════════════════════════════════════════════════════════════
+
+[supertrendValue, supertrendDirection] = ta.supertrend(stMultiplier, stPeriod)
+
+// Trend state: 1 = Bull, -1 = Bear
+int trendState = supertrendDirection < 0 ? 1 : -1
+
+// Trend change detection
+bool trendChange = ta.change(trendState) != 0
+bool bullishChange = trendChange and trendState == 1
+bool bearishChange = trendChange and trendState == -1
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🎨 VISUALIZATION - CLOUD RIBBON
+// ═══════════════════════════════════════════════════════════════════════
+
+// Upper and lower bands for cloud
+float upperBand = trendState == 1 ? supertrendValue : close
+float lowerBand = trendState == 1 ? close : supertrendValue
+
+// Plot Supertrend line
+plot(showSupertrend ? supertrendValue : na, "Supertrend", 
+     color=trendState == 1 ? COLOR_GREEN : COLOR_RED, 
+     linewidth=2, 
+     style=plot.style_line)
+
+// Cloud fill between price and Supertrend
+fill_color = trendState == 1 ? COLOR_GREEN_CLOUD : COLOR_RED_CLOUD
+fill(plot(showSupertrend ? close : na, display=display.none), 
+     plot(showSupertrend ? supertrendValue : na, display=display.none),
+     color=fill_color,
+     title="Supertrend Cloud")
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔔 ALERTS & SIGNALS
+// ═══════════════════════════════════════════════════════════════════════
+
+// Trend change markers
+plotshape(showSupertrend and bullishChange, "Bull Signal", 
+     shape.triangleup, location.belowbar, COLOR_GREEN, size=size.small)
+plotshape(showSupertrend and bearishChange, "Bear Signal", 
+     shape.triangledown, location.abovebar, COLOR_RED, size=size.small)
+
+// Alert conditions
+alertcondition(bullishChange, "Supertrend Bull", "Supertrend turned BULLISH")
+alertcondition(bearishChange, "Supertrend Bear", "Supertrend turned BEARISH")
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🧠 CONFLUENCE SCORING
+// ═══════════════════════════════════════════════════════════════════════
+
+// Supertrend strength (0-100)
+float stStrength = math.abs(close - supertrendValue) / supertrendValue * 100
+float stScore = trendState == 1 ? math.min(stStrength * 10, 100) : 
+                trendState == -1 ? -math.min(stStrength * 10, 100) : 0
+
+// Export for Confluence Engine
+float supertrendConfluence = impactConfluence ? stScore : 0
+
+// ═══════════════════════════════════════════════════════════════════════
+// 📊 DASHBOARD OUTPUT
+// ═══════════════════════════════════════════════════════════════════════
+
+// Row 9: Supertrend status
+string stStatus = trendState == 1 ? "🟢 BULL" : "🔴 BEAR"
+// Update dashboard row 9 with stStatus
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🔄 EXPORTS
+// ═══════════════════════════════════════════════════════════════════════
+
+// Variables to export to main indicator:
+// - trendState (1/-1)
+// - supertrendValue (float)
+// - supertrendConfluence (float, for Confluence Engine)
+// - bullishChange / bearishChange (bool, for alerts)
