@@ -1,0 +1,596 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © davidnault0
+
+//@version=6
+indicator("AI GOLD MASTER", overlay=true, max_bars_back=500, max_lines_count=500, max_labels_count=500, max_boxes_count=500)
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 🎨 GLOBAL SETTINGS
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+grpGlobal = "🎨 Global Settings"
+colorGold = input.color(#FFD700, "Gold Color", group=grpGlobal)
+colorGreen = input.color(#00FF00, "Bull Color", group=grpGlobal)
+colorRed = input.color(#FF0000, "Bear Color", group=grpGlobal)
+colorBlack = input.color(#000000, "Black Color", group=grpGlobal)
+colorWhite = input.color(#FFFFFF, "White Color", group=grpGlobal)
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 💰 RISK MANAGEMENT / POSITION SIZING
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+grpRisk = "💰 Risk Management"
+capital = input.float(10000, "Capital ($)", minval=100, group=grpRisk)
+riskPercent = input.float(1.0, "Risk per Trade (%)", minval=0.1, maxval=10, step=0.1, group=grpRisk)
+tradingMode = input.string("Swing", "Trading Mode", options=["Scalping", "Swing", "Intraday"], group=grpRisk)
+strategyMode = input.string("Pro", "Strategy Mode", options=["Pro", "Agressif"], group=grpRisk)
+autoTune = input.bool(true, "Auto-Tune Modules", group=grpRisk)
+
+// Risk calculation
+riskAmount = capital * riskPercent / 100
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 📐 EMAs 50/100/200
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+grpEMA = "📐 EMAs 50/100/200"
+emaShow = input.bool(true, "Show EMAs", group=grpEMA)
+emaConfluence = input.bool(true, "Impact Confluence", group=grpEMA)
+
+ema50 = ta.ema(close, 50)
+ema100 = ta.ema(close, 100)
+ema200 = ta.ema(close, 200)
+
+// EMA Trend determination
+emaTrend = ema50 > ema100 and ema100 > ema200 ? "Bull" : ema50 < ema100 and ema100 < ema200 ? "Bear" : "Neutral"
+emaTrendColor = emaTrend == "Bull" ? colorGreen : emaTrend == "Bear" ? colorRed : color.gray
+
+plot(emaShow ? ema50 : na, "EMA 50", color.new(color.blue, 0), 2)
+plot(emaShow ? ema100 : na, "EMA 100", color.new(color.orange, 0), 2)
+plot(emaShow ? ema200 : na, "EMA 200", color.new(color.purple, 0), 2)
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// ⚡ EMA9 MOMENTUM
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+grpEMA9 = "⚡ EMA9 Momentum"
+ema9Show = input.bool(true, "Show EMA9", group=grpEMA9)
+ema9Confluence = input.bool(true, "Impact Confluence", group=grpEMA9)
+
+ema9 = ta.ema(close, 9)
+ema9Momentum = close > ema9 ? "Bull" : "Bear"
+ema9Color = close > ema9 ? colorGreen : colorRed
+
+plot(ema9Show ? ema9 : na, "EMA 9", color.new(ema9Color, 0), 2)
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 📍 VWAP
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+grpVWAP = "📍 VWAP"
+vwapShow = input.bool(true, "Show VWAP", group=grpVWAP)
+vwapConfluence = input.bool(true, "Impact Confluence", group=grpVWAP)
+
+vwapValue = ta.vwap(close)
+vwapTrend = close > vwapValue ? "Bull" : "Bear"
+vwapColor = close > vwapValue ? colorGreen : colorRed
+
+plot(vwapShow ? vwapValue : na, "VWAP", color.new(vwapColor, 0), 2)
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 📈 SUPERTREND
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+grpSupertrend = "📈 Supertrend"
+stShow = input.bool(true, "Show Supertrend", group=grpSupertrend)
+stConfluence = input.bool(true, "Impact Confluence", group=grpSupertrend)
+stPeriod = input.int(10, "Period", minval=1, group=grpSupertrend)
+stMultiplier = input.float(3.0, "Multiplier", minval=0.1, step=0.1, group=grpSupertrend)
+
+// Auto-adjust based on trading mode
+stPeriodAdj = autoTune ? (tradingMode == "Scalping" ? 7 : tradingMode == "Intraday" ? 10 : 12) : stPeriod
+stMultAdj = autoTune ? (tradingMode == "Scalping" ? 2.5 : tradingMode == "Intraday" ? 3.0 : 3.5) : stMultiplier
+
+// Supertrend calculation
+atr = ta.atr(stPeriodAdj)
+upperBand = hl2 + (stMultAdj * atr)
+lowerBand = hl2 - (stMultAdj * atr)
+
+var float supertrend = na
+var int stDirection = 1
+
+prevSupertrend = supertrend[1]
+prevDirection = stDirection[1]
+
+if na(atr[1])
+    stDirection := 1
+    supertrend := lowerBand
+else
+    if prevDirection == 1
+        supertrend := close < prevSupertrend ? lowerBand : math.max(lowerBand, prevSupertrend)
+    else
+        supertrend := close > prevSupertrend ? upperBand : math.min(upperBand, prevSupertrend)
+    
+    stDirection := close > supertrend ? 1 : -1
+
+stTrend = stDirection == 1 ? "Bull" : "Bear"
+stColor = stDirection == 1 ? colorGreen : colorRed
+
+plot(stShow ? supertrend : na, "Supertrend", color.new(stColor, 0), 2, plot.style_line)
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 📈 FIBONACCI AUTO
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+grpFibo = "📈 Fibonacci Auto"
+fiboShow = input.bool(false, "Show Fibonacci", group=grpFibo)
+fiboConfluence = input.bool(true, "Impact Confluence", group=grpFibo)
+fiboLookback = input.int(50, "Lookback Periods", minval=10, maxval=200, group=grpFibo)
+
+// Find swing highs and lows for Fibonacci
+swingHigh = ta.pivothigh(high, 5, 5)
+swingLow = ta.pivotlow(low, 5, 5)
+
+var float fiboHigh = na
+var float fiboLow = na
+var int fiboBarHigh = na
+var int fiboBarLow = na
+
+if not na(swingHigh)
+    fiboHigh := high[5]
+    fiboBarHigh := bar_index - 5
+
+if not na(swingLow)
+    fiboLow := low[5]
+    fiboBarLow := bar_index - 5
+
+// Calculate Fibonacci levels
+fiboDiff = fiboHigh - fiboLow
+fibo236 = fiboLow + fiboDiff * 0.236
+fibo382 = fiboLow + fiboDiff * 0.382
+fibo50 = fiboLow + fiboDiff * 0.5
+fibo618 = fiboLow + fiboDiff * 0.618
+fibo786 = fiboLow + fiboDiff * 0.786
+fibo886 = fiboLow + fiboDiff * 0.886
+
+// Key zones
+isInKeyZone1 = close >= fibo50 and close <= fibo618
+isInKeyZone2 = close >= fibo786 and close <= fibo886
+isInFiboZone = isInKeyZone1 or isInKeyZone2
+
+plot(fiboShow ? fibo50 : na, "Fibo 50%", color.new(color.yellow, 70), 1, plot.style_line)
+plot(fiboShow ? fibo618 : na, "Fibo 61.8%", color.new(color.orange, 70), 1, plot.style_line)
+plot(fiboShow ? fibo786 : na, "Fibo 78.6%", color.new(color.red, 70), 1, plot.style_line)
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 🟦 DAILY OPEN
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+grpDailyOpen = "🟦 Daily Open"
+dailyOpenShow = input.bool(true, "Show Daily Open", group=grpDailyOpen)
+
+dailyOpen = request.security(syminfo.tickerid, "D", open, barmerge.gaps_off, barmerge.lookahead_on)
+dailyOpenColor = close > dailyOpen ? colorGreen : colorRed
+
+plot(dailyOpenShow ? dailyOpen : na, "Daily Open", color.new(dailyOpenColor, 0), 2, plot.style_circles)
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 🕯️ ENGULFING PATTERNS
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+grpEngulfing = "🕯️ Engulfing"
+engulfingShow = input.bool(true, "Show Engulfing", group=grpEngulfing)
+engulfingMinBody = input.float(0.6, "Min Body %", minval=0.1, maxval=1.0, step=0.1, group=grpEngulfing)
+
+// Engulfing pattern detection
+bullishEngulfing = close > open and close[1] < open[1] and close > open[1] and open < close[1]
+bearishEngulfing = close < open and close[1] > open[1] and close < open[1] and open > close[1]
+
+// Body size filter
+bodySize = math.abs(close - open)
+prevBodySize = math.abs(close[1] - open[1])
+candleRange = high - low
+bodyPercent = bodySize / candleRange
+
+validBullEngulfing = bullishEngulfing and bodyPercent >= engulfingMinBody and bodySize > prevBodySize * 1.2
+validBearEngulfing = bearishEngulfing and bodyPercent >= engulfingMinBody and bodySize > prevBodySize * 1.2
+
+// Enhanced engulfing with Fibo and OB alignment
+fiboAlignedBull = validBullEngulfing and isInFiboZone
+fiboAlignedBear = validBearEngulfing and isInFiboZone
+
+// Plot engulfing patterns
+plotshape(engulfingShow and validBullEngulfing and not fiboAlignedBull, "Bull Engulfing", shape.triangleup, location.belowbar, colorGreen, size=size.small)
+plotshape(engulfingShow and validBearEngulfing and not fiboAlignedBear, "Bear Engulfing", shape.triangledown, location.abovebar, colorRed, size=size.small)
+plotshape(engulfingShow and fiboAlignedBull, "Fibo Bull Engulfing", shape.triangleup, location.belowbar, color.yellow, size=size.normal)
+plotshape(engulfingShow and fiboAlignedBear, "Fibo Bear Engulfing", shape.triangledown, location.abovebar, color.yellow, size=size.normal)
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 🔹 MARKET STRUCTURE (HH/HL vs LL/LH)
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+grpStructure = "🔹 Market Structure"
+structureShow = input.bool(true, "Show Structure", group=grpStructure)
+
+// Pivot detection
+pivotLookback = 5
+pivotHigh = ta.pivothigh(high, pivotLookback, pivotLookback)
+pivotLowVal = ta.pivotlow(low, pivotLookback, pivotLookback)
+
+var float lastHigh = na
+var float lastLow = na
+var int lastHighBar = na
+var int lastLowBar = na
+
+// Track structure
+if not na(pivotHigh)
+    if na(lastHigh) or high[pivotLookback] > lastHigh
+        if structureShow
+            label.new(bar_index - pivotLookback, high[pivotLookback], "HH", style=label.style_label_down, color=colorGreen, textcolor=colorWhite, size=size.tiny)
+    else if high[pivotLookback] < lastHigh
+        if structureShow
+            label.new(bar_index - pivotLookback, high[pivotLookback], "LH", style=label.style_label_down, color=colorRed, textcolor=colorWhite, size=size.tiny)
+    lastHigh := high[pivotLookback]
+    lastHighBar := bar_index - pivotLookback
+
+if not na(pivotLowVal)
+    if na(lastLow) or low[pivotLookback] < lastLow
+        if structureShow
+            label.new(bar_index - pivotLookback, low[pivotLookback], "LL", style=label.style_label_up, color=colorRed, textcolor=colorWhite, size=size.tiny)
+    else if low[pivotLookback] > lastLow
+        if structureShow
+            label.new(bar_index - pivotLookback, low[pivotLookback], "HL", style=label.style_label_up, color=colorGreen, textcolor=colorWhite, size=size.tiny)
+    lastLow := low[pivotLookback]
+    lastLowBar := bar_index - pivotLookback
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 🧱 ORDER BLOCKS
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+grpOB = "🧱 Order Blocks"
+obShow = input.bool(false, "Show Order Blocks", group=grpOB)
+obConfluence = input.bool(true, "Impact Confluence", group=grpOB)
+
+// Order block detection on engulfing candles
+var line[] bullishOBLines = array.new_line()
+var line[] bearishOBLines = array.new_line()
+
+if validBullEngulfing and obShow
+    obLevel = open[1]
+    lineId = line.new(bar_index, obLevel, bar_index + 50, obLevel, color=color.new(colorGreen, 70), width=1, style=line.style_solid)
+    array.push(bullishOBLines, lineId)
+    label.new(bar_index, obLevel, "OB", style=label.style_label_left, color=colorGreen, textcolor=colorWhite, size=size.tiny)
+
+if validBearEngulfing and obShow
+    obLevel = open[1]
+    lineId = line.new(bar_index, obLevel, bar_index + 50, obLevel, color=color.new(colorRed, 70), width=1, style=line.style_solid)
+    array.push(bearishOBLines, lineId)
+    label.new(bar_index, obLevel, "OB", style=label.style_label_left, color=colorRed, textcolor=colorWhite, size=size.tiny)
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 💠 VOLUME CONTROL
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+grpVolume = "💠 Volume Control"
+volumeShow = input.bool(true, "Calculate Volume %", group=grpVolume)
+
+// Calculate buying vs selling volume
+buyVolume = close > open ? volume : 0
+sellVolume = close < open ? volume : 0
+totalVol = volume
+
+// Average over period for smoothing
+volPeriod = 14
+avgBuyVol = ta.sma(buyVolume, volPeriod)
+avgSellVol = ta.sma(sellVolume, volPeriod)
+avgTotalVol = ta.sma(totalVol, volPeriod)
+
+buyPercent = avgTotalVol > 0 ? (avgBuyVol / avgTotalVol) * 100 : 50
+sellPercent = avgTotalVol > 0 ? (avgSellVol / avgTotalVol) * 100 : 50
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 💠 RSI DIVERGENCE (MTF)
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+grpRSI = "💠 RSI Divergence"
+rsiShow = input.bool(false, "Show RSI Divergence", group=grpRSI)
+rsiPeriod = input.int(14, "RSI Period", minval=2, group=grpRSI)
+
+rsi = ta.rsi(close, rsiPeriod)
+rsiOB = 70
+rsiOS = 30
+
+// Simple divergence detection
+priceHigh = ta.pivothigh(high, 5, 5)
+priceLow = ta.pivotlow(low, 5, 5)
+rsiHigh = ta.pivothigh(rsi, 5, 5)
+rsiLow = ta.pivotlow(rsi, 5, 5)
+
+var float lastPriceHigh = na
+var float lastRSIHigh = na
+var float lastPriceLow = na
+var float lastRSILow = na
+
+// Bearish divergence: price makes higher high, RSI makes lower high
+if not na(priceHigh) and not na(rsiHigh)
+    if not na(lastPriceHigh) and high[5] > lastPriceHigh and rsi[5] < lastRSIHigh and rsiShow
+        label.new(bar_index - 5, high[5], "DIV-BEAR", style=label.style_label_down, color=colorRed, textcolor=colorWhite, size=size.tiny)
+    lastPriceHigh := high[5]
+    lastRSIHigh := rsi[5]
+
+// Bullish divergence: price makes lower low, RSI makes higher low
+if not na(priceLow) and not na(rsiLow)
+    if not na(lastPriceLow) and low[5] < lastPriceLow and rsi[5] > lastRSILow and rsiShow
+        label.new(bar_index - 5, low[5], "DIV-BULL", style=label.style_label_up, color=colorGreen, textcolor=colorWhite, size=size.tiny)
+    lastPriceLow := low[5]
+    lastRSILow := rsi[5]
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// SQUEEZE DETECTION
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+grpSqueeze = "Squeeze"
+sqzLength = input.int(20, "BB Length", minval=1, group=grpSqueeze)
+sqzMult = input.float(2.0, "BB Mult", minval=0.1, step=0.1, group=grpSqueeze)
+sqzKCMult = input.float(1.5, "KC Mult", minval=0.1, step=0.1, group=grpSqueeze)
+
+// Bollinger Bands
+bbBasis = ta.sma(close, sqzLength)
+bbDev = sqzMult * ta.stdev(close, sqzLength)
+bbUpper = bbBasis + bbDev
+bbLower = bbBasis - bbDev
+
+// Keltner Channel
+kcBasis = ta.sma(close, sqzLength)
+kcRange = sqzKCMult * ta.atr(sqzLength)
+kcUpper = kcBasis + kcRange
+kcLower = kcBasis - kcRange
+
+// Squeeze condition: BB inside KC
+isSqueeze = bbLower > kcLower and bbUpper < kcUpper
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 🧠 CONFLUENCE ENGINE
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// Calculate confluence score based on active modules
+confluenceScore = 0
+maxScore = 0
+
+if emaConfluence
+    maxScore += 1
+    if emaTrend == "Bull" and close > ema50
+        confluenceScore += 1
+    else if emaTrend == "Bear" and close < ema50
+        confluenceScore += 1
+
+if ema9Confluence
+    maxScore += 1
+    if ema9Momentum == "Bull" and close > ema9
+        confluenceScore += 1
+    else if ema9Momentum == "Bear" and close < ema9
+        confluenceScore += 1
+
+if vwapConfluence
+    maxScore += 1
+    if vwapTrend == "Bull" and close > vwapValue
+        confluenceScore += 1
+    else if vwapTrend == "Bear" and close < vwapValue
+        confluenceScore += 1
+
+if stConfluence
+    maxScore += 1
+    if stTrend == "Bull" and close > supertrend
+        confluenceScore += 1
+    else if stTrend == "Bear" and close < supertrend
+        confluenceScore += 1
+
+if fiboConfluence and isInFiboZone
+    maxScore += 1
+    confluenceScore += 1
+
+if obConfluence and (validBullEngulfing or validBearEngulfing)
+    maxScore += 1
+    confluenceScore += 1
+
+confluencePercent = maxScore > 0 ? (confluenceScore / maxScore) * 100 : 0
+confluenceState = confluencePercent >= 70 ? "Strong" : confluencePercent >= 50 ? "Moderate" : "Weak"
+confluenceColor = confluencePercent >= 70 ? colorGreen : confluencePercent >= 50 ? color.orange : colorRed
+
+// Determine overall trend for confluence
+overallTrend = confluenceScore > maxScore / 2 ? "Bull" : "Bear"
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// TRADE CALCULATIONS
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// Calculate SL/TP based on mode and ATR
+atrValue = ta.atr(14)
+
+// Mode-based multipliers
+slMultiplier = tradingMode == "Scalping" ? 1.5 : tradingMode == "Intraday" ? 2.0 : 3.0
+tp1Multiplier = tradingMode == "Scalping" ? 1.0 : tradingMode == "Intraday" ? 1.5 : 2.0
+tp2Multiplier = tradingMode == "Scalping" ? 2.0 : tradingMode == "Intraday" ? 3.0 : 4.0
+tp3Multiplier = tradingMode == "Scalping" ? 3.0 : tradingMode == "Intraday" ? 4.5 : 6.0
+
+// Aggressive mode adjustments
+if strategyMode == "Agressif"
+    slMultiplier *= 0.8
+    tp1Multiplier *= 1.2
+    tp2Multiplier *= 1.3
+    tp3Multiplier *= 1.4
+
+// Entry signals based on confluence
+bullishSetup = confluencePercent >= 60 and close > ema50 and close > vwapValue and stDirection == 1
+bearishSetup = confluencePercent >= 60 and close < ema50 and close < vwapValue and stDirection == -1
+
+// Calculate prices
+entryPrice = close
+slLong = entryPrice - (atrValue * slMultiplier)
+tp1Long = entryPrice + (atrValue * tp1Multiplier)
+tp2Long = entryPrice + (atrValue * tp2Multiplier)
+tp3Long = entryPrice + (atrValue * tp3Multiplier)
+
+slShort = entryPrice + (atrValue * slMultiplier)
+tp1Short = entryPrice - (atrValue * tp1Multiplier)
+tp2Short = entryPrice - (atrValue * tp2Multiplier)
+tp3Short = entryPrice - (atrValue * tp3Multiplier)
+
+// Calculate lot size
+slDistance = math.abs(entryPrice - (bullishSetup ? slLong : slShort))
+lotSize = slDistance > 0 ? riskAmount / slDistance : 0
+
+// Calculate RR
+rrLong = slDistance > 0 ? (tp1Long - entryPrice) / slDistance : 0
+rrShort = slDistance > 0 ? (entryPrice - tp1Short) / slDistance : 0
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// SETUP LABELS
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+if bullishSetup and validBullEngulfing
+    setupText = "🚀 LONG\n" + 
+                 "Entry: " + str.tostring(entryPrice, "#.##") + "\n" +
+                 "SL: " + str.tostring(slLong, "#.##") + "\n" +
+                 "TP1: " + str.tostring(tp1Long, "#.##") + "\n" +
+                 "TP2: " + str.tostring(tp2Long, "#.##") + "\n" +
+                 "RR: " + str.tostring(rrLong, "#.##") + "\n" +
+                 "Lot: " + str.tostring(lotSize, "#.##")
+    label.new(bar_index, low, setupText, style=label.style_label_up, color=colorGreen, textcolor=colorWhite, size=size.normal)
+
+if bearishSetup and validBearEngulfing
+    setupText = "🔻 SHORT\n" + 
+                 "Entry: " + str.tostring(entryPrice, "#.##") + "\n" +
+                 "SL: " + str.tostring(slShort, "#.##") + "\n" +
+                 "TP1: " + str.tostring(tp1Short, "#.##") + "\n" +
+                 "TP2: " + str.tostring(tp2Short, "#.##") + "\n" +
+                 "RR: " + str.tostring(rrShort, "#.##") + "\n" +
+                 "Lot: " + str.tostring(lotSize, "#.##")
+    label.new(bar_index, high, setupText, style=label.style_label_down, color=colorRed, textcolor=colorWhite, size=size.normal)
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// SPECIAL CANDLE COLORING
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+grpCandles = "🎨 Candle Colors"
+specialCandlesShow = input.bool(true, "Show Special Candles", group=grpCandles)
+
+// High probability reversal conditions
+strongBullReversal = bullishSetup and validBullEngulfing and confluencePercent >= 70 and close > ema200
+strongBearReversal = bearishSetup and validBearEngulfing and confluencePercent >= 70 and close < ema200
+
+candleColor = specialCandlesShow and strongBullReversal ? colorWhite : 
+              specialCandlesShow and strongBearReversal ? colorBlack : na
+
+barcolor(candleColor)
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// MTF BIAS
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+grpMTF = "📊 MTF Bias"
+mtfShow = input.bool(true, "Show MTF Bias", group=grpMTF)
+
+// Get higher timeframe trends
+tf5m = request.security(syminfo.tickerid, "5", close > ta.ema(close, 50) ? 1 : -1, barmerge.gaps_off, barmerge.lookahead_off)
+tf15m = request.security(syminfo.tickerid, "15", close > ta.ema(close, 50) ? 1 : -1, barmerge.gaps_off, barmerge.lookahead_off)
+tf1h = request.security(syminfo.tickerid, "60", close > ta.ema(close, 50) ? 1 : -1, barmerge.gaps_off, barmerge.lookahead_off)
+tf4h = request.security(syminfo.tickerid, "240", close > ta.ema(close, 50) ? 1 : -1, barmerge.gaps_off, barmerge.lookahead_off)
+tf1d = request.security(syminfo.tickerid, "D", close > ta.ema(close, 50) ? 1 : -1, barmerge.gaps_off, barmerge.lookahead_off)
+
+// Calculate general bias
+mtfSum = tf5m + tf15m + tf1h + tf4h + tf1d
+generalBias = mtfSum > 0 ? "Bull" : mtfSum < 0 ? "Bear" : "Neutral"
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// 📊 DASHBOARD
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+grpDash = "📊 Dashboard"
+dashShow = input.bool(true, "Show Dashboard", group=grpDash)
+
+if dashShow and barstate.islast
+    // Create dashboard table
+    var table dashboard = table.new(position.bottom_left, 2, 16, bgcolor=color.new(colorBlack, 10), border_width=2, border_color=colorGold)
+    
+    // Row 1: Title and Price
+    table.cell(dashboard, 0, 0, "AI GOLD MASTER", text_color=colorGold, text_size=size.normal, bgcolor=color.new(colorBlack, 0))
+    table.cell(dashboard, 1, 0, str.tostring(close, "#.##"), text_color=colorWhite, text_size=size.normal, bgcolor=color.new(colorBlack, 0))
+    
+    // Row 2: Modes
+    table.cell(dashboard, 0, 1, "Mode", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    table.cell(dashboard, 1, 1, strategyMode + " | " + tradingMode, text_color=colorGold, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    
+    // Row 3: Trend
+    table.cell(dashboard, 0, 2, "Trend", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    table.cell(dashboard, 1, 2, overallTrend, text_color=overallTrend == "Bull" ? colorGreen : colorRed, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    
+    // Row 4: Confluence
+    table.cell(dashboard, 0, 3, "Confluence", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    table.cell(dashboard, 1, 3, confluenceState + " (" + str.tostring(confluencePercent, "#") + "%)", text_color=confluenceColor, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    
+    // Row 5: Volume
+    table.cell(dashboard, 0, 4, "Volume", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    table.cell(dashboard, 1, 4, "Buy: " + str.tostring(buyPercent, "#") + "% | Sell: " + str.tostring(sellPercent, "#") + "%", text_color=buyPercent > 50 ? colorGreen : colorRed, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    
+    // Row 6: EMA Trend
+    table.cell(dashboard, 0, 5, "EMA Trend", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    table.cell(dashboard, 1, 5, emaTrend, text_color=emaTrendColor, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    
+    // Row 7: EMA9 Momentum
+    table.cell(dashboard, 0, 6, "EMA9 MoM", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    table.cell(dashboard, 1, 6, ema9Momentum, text_color=ema9Color, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    
+    // Row 8: VWAP
+    table.cell(dashboard, 0, 7, "VWAP", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    table.cell(dashboard, 1, 7, vwapTrend, text_color=vwapColor, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    
+    // Row 9: Supertrend
+    table.cell(dashboard, 0, 8, "Supertrend", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    table.cell(dashboard, 1, 8, stTrend, text_color=stColor, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    
+    // Row 10: Daily Open
+    dailyStatus = close > dailyOpen ? "Above" : "Below"
+    table.cell(dashboard, 0, 9, "Daily Open", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    table.cell(dashboard, 1, 9, dailyStatus, text_color=dailyOpenColor, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    
+    // Row 11: Price vs EMA50
+    ema50Status = close > ema50 ? "Above" : "Below"
+    ema50Color = close > ema50 ? colorGreen : colorRed
+    table.cell(dashboard, 0, 10, "Price vs EMA50", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    table.cell(dashboard, 1, 10, ema50Status, text_color=ema50Color, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    
+    // Row 12: SL and TP
+    table.cell(dashboard, 0, 11, "SL & TP", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    slTpText = bullishSetup ? "SL:" + str.tostring(slLong, "#.##") + " TP:" + str.tostring(tp1Long, "#.##") : 
+               bearishSetup ? "SL:" + str.tostring(slShort, "#.##") + " TP:" + str.tostring(tp1Short, "#.##") : "N/A"
+    table.cell(dashboard, 1, 11, slTpText, text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    
+    // Row 13: RR and LOT
+    table.cell(dashboard, 0, 12, "RR & LOT", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    rrLotText = bullishSetup ? "RR:" + str.tostring(rrLong, "#.##") + " Lot:" + str.tostring(lotSize, "#.##") : 
+                bearishSetup ? "RR:" + str.tostring(rrShort, "#.##") + " Lot:" + str.tostring(lotSize, "#.##") : "N/A"
+    table.cell(dashboard, 1, 12, rrLotText, text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    
+    // Row 14: Symbol and Timeframe
+    table.cell(dashboard, 0, 13, "SYM/TF", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    table.cell(dashboard, 1, 13, syminfo.ticker + " / " + timeframe.period, text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    
+    // Row 15: Squeeze
+    sqzColor = isSqueeze ? (bar_index % 2 == 0 ? color.yellow : colorWhite) : colorBlack
+    table.cell(dashboard, 0, 14, "Squeeze", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    table.cell(dashboard, 1, 14, isSqueeze ? "ACTIVE" : "Inactive", text_color=sqzColor, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+    
+    // MTF Bias Section
+    if mtfShow
+        var table mtfTable = table.new(position.bottom_right, 2, 7, bgcolor=color.new(colorBlack, 10), border_width=2, border_color=colorGold)
+        
+        table.cell(mtfTable, 0, 0, "MTF BIAS", text_color=colorGold, text_size=size.small, bgcolor=color.new(colorBlack, 0))
+        table.cell(mtfTable, 1, 0, "", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 0))
+        
+        table.cell(mtfTable, 0, 1, "5M", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+        table.cell(mtfTable, 1, 1, tf5m > 0 ? "Bull" : "Bear", text_color=tf5m > 0 ? colorGreen : colorRed, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+        
+        table.cell(mtfTable, 0, 2, "15M", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+        table.cell(mtfTable, 1, 2, tf15m > 0 ? "Bull" : "Bear", text_color=tf15m > 0 ? colorGreen : colorRed, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+        
+        table.cell(mtfTable, 0, 3, "1H", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+        table.cell(mtfTable, 1, 3, tf1h > 0 ? "Bull" : "Bear", text_color=tf1h > 0 ? colorGreen : colorRed, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+        
+        table.cell(mtfTable, 0, 4, "4H", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+        table.cell(mtfTable, 1, 4, tf4h > 0 ? "Bull" : "Bear", text_color=tf4h > 0 ? colorGreen : colorRed, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+        
+        table.cell(mtfTable, 0, 5, "1D", text_color=colorWhite, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+        table.cell(mtfTable, 1, 5, tf1d > 0 ? "Bull" : "Bear", text_color=tf1d > 0 ? colorGreen : colorRed, text_size=size.small, bgcolor=color.new(colorBlack, 20))
+        
+        table.cell(mtfTable, 0, 6, "GEN", text_color=colorGold, text_size=size.small, bgcolor=color.new(colorBlack, 0))
+        table.cell(mtfTable, 1, 6, generalBias, text_color=generalBias == "Bull" ? colorGreen : generalBias == "Bear" ? colorRed : color.gray, text_size=size.small, bgcolor=color.new(colorBlack, 0))
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// ALERTS
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+alertcondition(bullishSetup, "Bullish Setup", "AI GOLD MASTER: Bullish setup detected!")
+alertcondition(bearishSetup, "Bearish Setup", "AI GOLD MASTER: Bearish setup detected!")
+alertcondition(isSqueeze, "Squeeze Active", "AI GOLD MASTER: Squeeze is active!")
+alertcondition(strongBullReversal, "Strong Bull Reversal", "AI GOLD MASTER: Strong bullish reversal!")
+alertcondition(strongBearReversal, "Strong Bear Reversal", "AI GOLD MASTER: Strong bearish reversal!")
